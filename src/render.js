@@ -78,8 +78,8 @@ function drawFieldDebug(p, field) {
   }
 }
 
-// Panel: rastro del mouse, claridad, conteo de agentes por comportamiento y campo.
-export function drawDebug(p, { samples, intention, agents, field }) {
+// Panel (tecla D): claridad, agentes por comportamiento, juicios por origen (f fiel, d desvío, v deriva, - sin traza) y campo.
+export function drawDebug(p, { samples, intention, agents, field, log }) {
   drawFieldDebug(p, field);
 
   const counts = { fiel: 0, desvio: 0, deriva: 0 };
@@ -99,6 +99,8 @@ export function drawDebug(p, { samples, intention, agents, field }) {
     `  fiel          ${counts.fiel}`,
     `  desvío        ${counts.desvio}`,
     `  deriva        ${counts.deriva}`,
+    `conservado      f ${log.counts.conserve.fiel} · d ${log.counts.conserve.desvio} · v ${log.counts.conserve.deriva} · - ${log.counts.conserve.ninguno}`,
+    `soltado         f ${log.counts.release.fiel} · d ${log.counts.release.desvio} · v ${log.counts.release.deriva} · - ${log.counts.release.ninguno}`,
     `fps             ${Math.round(p.frameRate())}`,
   ];
   lines.forEach((l, i) => p.text(l, 16, 16 + i * 18));

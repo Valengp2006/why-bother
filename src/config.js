@@ -110,6 +110,11 @@ export const CONFIG = {
   // Cada cuántos ms se reevalúa el comportamiento (fiel/desvío/deriva) de un agente.
   CLASSIFY_INTERVAL: 500,
 
+  // --- Juicio (clic para conservar o soltar) ---
+  // Masa mínima de traza dentro del radio para que un juicio cuente como hecho "sobre algo".
+  // Por debajo se registra igual, pero con origen 'ninguno'. Más alto: exige más pintura bajo el cursor.
+  JUDGMENT_MIN_MASS: 0.4,
+
   // --- Trazas (malla tipo Physarum, un canal por comportamiento) ---
   // Resolución de la malla respecto a la pantalla (0 a 1). 0.25 = una celda por cada 4×4 px.
   // Más alto: trazas más finas y más costo de CPU. Más bajo: manchas más gruesas y suaves.
@@ -183,8 +188,8 @@ export const CONFIG = {
   // Cuánto se espera (ms) después de la frase de los comportamientos antes de la del juicio.
   NARRATIVE_JUDGMENT_DELAY: 5000,
 
-  // La frase del juicio habla de clic para conservar y soltar. Se activa en el hito 6, cuando existen los clics.
-  JUDGMENT_ENABLED: false,
+  // Si se muestra la frase del juicio (clic para conservar y soltar).
+  JUDGMENT_ENABLED: true,
 
   // Los textos. 'color' toma el de la paleta (fiel, desvio, deriva, conservado); sin 'color', el texto es neutro.
   NARRATIVE_TEXT: {

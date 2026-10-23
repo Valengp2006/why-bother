@@ -6,6 +6,8 @@ import { createField, updateField } from './field.js';
 import { createAgent, stepAgent } from './agent.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails } from './trails.js';
+import { judge } from './judgment.js';
+import { createLog, downloadLog } from './log.js';
 import { createNarrative, updateNarrative, drawNarrative } from './narrative.js';
 import { drawAgents, drawTrails, drawIntention, drawHint, drawDebug } from './render.js';
 
@@ -21,6 +23,7 @@ new p5((p) => {
   let trails;
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
   const narrative = createNarrative();
+  const log = createLog();
   let hintAlpha = 0;      // opacidad de la instrucción inicial
   let started = false;    // se vuelve true cuando la persona empieza a moverse con intención
   let showDebug = CONFIG.DEBUG_AT_START;
@@ -32,6 +35,8 @@ new p5((p) => {
     p.noiseSeed(CONFIG.RANDOM_SEED);
     field = createField(p.width, p.height);
     trails = createTrails(p.width, p.height);
+    // El clic derecho es un gesto de la obra (soltar): se evita el menú del navegador.
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
   };
 
   // Hace nacer agentes cerca del mouse, en proporción a su rapidez, mientras la intención está activa.
@@ -87,11 +92,17 @@ new p5((p) => {
     if (showDebug || CONFIG.SHOW_AGENTS) drawAgents(p, agents);
     drawHint(p, hintAlpha);
     drawNarrative(p, narrative, now);
-    if (showDebug) drawDebug(p, { samples, intention, agents, field });
+    if (showDebug) drawDebug(p, { samples, intention, agents, field, log });
+  };
+
+  // Clic: conservar. Clic derecho o Shift+clic: soltar. El primer clic de la sesión solo inicia el audio.
+  p.mousePressed = (event) => {
+    judge(trails, log, event, p.mouseX, p.mouseY, p.millis());
   };
 
   p.keyPressed = () => {
     if (p.key === 'd' || p.key === 'D') showDebug = !showDebug;
+    if (p.key === 'l' || p.key === 'L') downloadLog(log, p.millis()); // descarga el registro de la sesión en JSON
   };
 
   // Si cambia el tamaño de la ventana, el canvas y el campo la siguen.

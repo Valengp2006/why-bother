@@ -65,6 +65,29 @@ export function updateTrails(trails, dt) {
   }
 }
 
+// Mide la traza dentro de CONSERVE_RADIUS alrededor de (x, y): cuánta hay de cada canal y cuál domina.
+// Es lo que se registra de cada juicio: de qué origen era lo que la persona conservó o soltó.
+export function measure(trails, x, y) {
+  const rx = CONFIG.CONSERVE_RADIUS * trails.sx;
+  const ry = CONFIG.CONSERVE_RADIUS * trails.sy;
+  const cx = x * trails.sx, cy = y * trails.sy;
+  const x0 = Math.max(0, Math.floor(cx - rx)), x1 = Math.min(trails.w - 1, Math.ceil(cx + rx));
+  const y0 = Math.max(0, Math.floor(cy - ry)), y1 = Math.min(trails.h - 1, Math.ceil(cy + ry));
+  const m = { fiel: 0, desvio: 0, deriva: 0, mass: 0, dominant: 'ninguno' };
+  for (let gy = y0; gy <= y1; gy++) {
+    for (let gx = x0; gx <= x1; gx++) {
+      if (Math.hypot((gx + 0.5 - cx) / rx, (gy + 0.5 - cy) / ry) >= 1) continue;
+      const i = gy * trails.w + gx;
+      m.fiel += trails.ch[0][i]; m.desvio += trails.ch[1][i]; m.deriva += trails.ch[2][i];
+    }
+  }
+  m.mass = m.fiel + m.desvio + m.deriva;
+  if (m.mass >= CONFIG.JUDGMENT_MIN_MASS) {
+    m.dominant = m.fiel >= m.desvio && m.fiel >= m.deriva ? 'fiel' : m.desvio >= m.deriva ? 'desvio' : 'deriva';
+  }
+  return m;
+}
+
 // Marca como conservada la traza alrededor de (x, y) (en px de pantalla). Borde suave.
 export function conserve(trails, x, y) {
   paintMask(trails, x, y, trails.cons, trails.rel);
