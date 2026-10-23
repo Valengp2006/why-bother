@@ -82,15 +82,6 @@ function drawFieldDebug(p, field) {
 export function drawDebug(p, { samples, intention, agents, field }) {
   drawFieldDebug(p, field);
 
-  p.noFill();
-  p.strokeWeight(1);
-  const now = p.millis();
-  for (let i = 1; i < samples.length; i++) {
-    const age = (now - samples[i].t) / CONFIG.WINDOW_MS;
-    p.stroke(255, 255 * (1 - age));
-    p.line(samples[i - 1].x, samples[i - 1].y, samples[i].x, samples[i].y);
-  }
-
   const counts = { fiel: 0, desvio: 0, deriva: 0 };
   for (const a of agents) counts[a.behavior]++;
 
@@ -118,4 +109,51 @@ export function drawDebug(p, { samples, intention, agents, field }) {
   p.noStroke();
   p.fill(255);
   p.rect(16, barY, 160 * intention.clarity, 10);
+}
+
+// La intención: el trazo del mouse (lo que pone la persona, se desvanece con el tiempo) y, por delante,
+// un abanico tenue con el alcance (hasta dónde llega el campo; lo que pone el sistema).
+export function drawIntention(p, samples, intention) {
+  if (samples.length < 2) return;
+  const [r, g, b] = RGB.fiel;
+  const now = p.millis();
+
+  p.noFill();
+  p.strokeWeight(CONFIG.INTENTION_WEIGHT);
+  for (let i = 1; i < samples.length; i++) {
+    const age = (now - samples[i].t) / CONFIG.WINDOW_MS;
+    p.stroke(r, g, b, CONFIG.INTENTION_ALPHA * Math.max(0, 1 - age));
+    p.line(samples[i - 1].x, samples[i - 1].y, samples[i].x, samples[i].y);
+  }
+
+  if (!intention.active) return;
+  const reach = intention.clarity * CONFIG.LOOKAHEAD;
+  if (reach < CONFIG.FIELD_CELL) return;
+  const { x: ox, y: oy } = samples[samples.length - 1];
+  const { x: dx, y: dy } = intention.dir;
+  const nx = -dy, ny = dx; // perpendicular, para el ancho del abanico
+  const steps = 24;
+  p.noStroke();
+  for (let s = 0; s < steps; s++) {
+    const d0 = (s / steps) * reach, d1 = ((s + 1) / steps) * reach;
+    const w0 = 3 + d0 * CONFIG.FAN_SPREAD * 0.5, w1 = 3 + d1 * CONFIG.FAN_SPREAD * 0.5;
+    p.fill(r, g, b, CONFIG.INTENTION_ALPHA * 0.35 * (1 - s / steps));
+    p.quad(
+      ox + dx * d0 + nx * w0, oy + dy * d0 + ny * w0,
+      ox + dx * d1 + nx * w1, oy + dy * d1 + ny * w1,
+      ox + dx * d1 - nx * w1, oy + dy * d1 - ny * w1,
+      ox + dx * d0 - nx * w0, oy + dy * d0 - ny * w0,
+    );
+  }
+}
+
+// Instrucción mínima del inicio, centrada y tenue. alpha va de 0 a 1.
+export function drawHint(p, alpha) {
+  if (alpha < 0.01) return;
+  const [r, g, b] = RGB.fiel;
+  p.noStroke();
+  p.fill(r, g, b, 150 * alpha);
+  p.textSize(18);
+  p.textAlign(p.CENTER, p.CENTER);
+  p.text(CONFIG.HINT_TEXT, p.width / 2, p.height / 2);
 }

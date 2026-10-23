@@ -158,6 +158,20 @@ export const CONFIG = {
   // Cuánto se tiñe de dorado lo conservado (0 a 1). 0 lo deja del color de su origen.
   GOLD_MIX: 0.75,
 
+  // Si se dibuja la intención: el trazo del mouse y, por delante, su alcance (hasta dónde llega el campo).
+  // Sirve para ver qué parte pone la persona y qué parte pone el sistema. false lo oculta.
+  SHOW_INTENTION: true,
+
+  // Opacidad (0 a 255) del trazo de la intención. Más alto: se ve más marcado.
+  INTENTION_ALPHA: 150,
+
+  // Grosor (px) del trazo de la intención.
+  INTENTION_WEIGHT: 2,
+
+  // Instrucción mínima en la oscuridad inicial. Se desvanece cuando la persona empieza a moverse.
+  // Explica el control, no el sentido de la obra.
+  HINT_TEXT: 'Mueve el mouse, sin presionar',
+
   // Si se dibujan también los trazos de los agentes (además de las trazas). Se ven siempre con D activo.
   SHOW_AGENTS: false,
 
