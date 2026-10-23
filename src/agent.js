@@ -2,9 +2,13 @@
 // Regla central de la obra:  fidelidad = claridad × susceptibilidad.
 import { CONFIG } from './config.js';
 import { sampleField } from './field.js';
+import { neighborInfo, flockForce } from './flock.js';
 
 let nextId = 0;
-const fieldSample = { strength: 0, dx: 0, dy: 0 }; // se reutiliza para no crear basura en cada agente
+// Se reutilizan para no crear basura en cada agente y cada cuadro.
+const fieldSample = { strength: 0, dx: 0, dy: 0 };
+const info = { aligned: 0, desvioN: 0, avgVx: 0, avgVy: 0, cx: 0, cy: 0 };
+const flock = { ax: 0, ay: 0 };
 
 // Nace en (x, y) con velocidad en la dirección del trazo. La susceptibilidad y el ángulo de desvío
 // son aleatorios pero salen de p.random(), que usa la semilla fija: misma semilla, misma población.
@@ -30,7 +34,7 @@ export function fidelityOf(clarity, susceptibility) {
 }
 
 // Clasificación por regla (no por azar). Fiel: fidelidad alta. Si no: desvío si tiene vecinos
-// de rumbo afín (lo calcula flock.js en el hito 4), y deriva si no.
+// de rumbo afín (lo calcula flock.js), y deriva si no.
 export function classify(agent, hasCoherentNeighbors = false) {
   if (agent.fidelity >= CONFIG.FIDELITY_HIGH) return 'fiel';
   return hasCoherentNeighbors ? 'desvio' : 'deriva';
@@ -42,13 +46,15 @@ function rotate(x, y, angle) {
 }
 
 // Un paso de simulación. Devuelve false si el agente murió (vida agotada o fuera de pantalla).
-export function stepAgent(p, agent, field, clarity, dt, nowMs) {
+export function stepAgent(p, agent, field, grid, clarity, dt, nowMs) {
   agent.age += dt;
   if (agent.age >= CONFIG.AGENT_LIFETIME) return false;
 
   agent.fidelity = fidelityOf(clarity, agent.susceptibility);
-  if (nowMs >= agent.nextClassify) {
-    agent.behavior = classify(agent);
+  const due = nowMs >= agent.nextClassify;
+  if (due || agent.behavior === 'desvio') neighborInfo(grid, agent, info); // vecinos: solo cuando hace falta
+  if (due) {
+    agent.behavior = classify(agent, info.aligned >= CONFIG.COHERENCE_NEIGHBORS);
     agent.nextClassify = nowMs + CONFIG.CLASSIFY_INTERVAL;
   }
 
@@ -69,6 +75,13 @@ export function stepAgent(p, agent, field, clarity, dt, nowMs) {
     if (sl > CONFIG.MAX_FORCE) { sx *= CONFIG.MAX_FORCE / sl; sy *= CONFIG.MAX_FORCE / sl; }
     ax += sx;
     ay += sy;
+  }
+
+  // Los desvíos, además, se alinean y se agrupan con sus vecinos desvío: así forman caminos coherentes.
+  if (agent.behavior === 'desvio') {
+    flockForce(agent, info, flock);
+    ax += flock.ax;
+    ay += flock.ay;
   }
 
   agent.vx += ax * dt;

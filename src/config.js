@@ -89,6 +89,24 @@ export const CONFIG = {
   // Fidelidad mínima (claridad × susceptibilidad) para ser "fiel". Más alto: hay menos fieles.
   FIDELITY_HIGH: 0.55,
 
+  // --- Flocking (los desvíos se agrupan en caminos coherentes) ---
+  // Radio (px) en el que un agente mira a sus vecinos. Más alto: ve más vecinos, los grupos son más grandes.
+  FLOCK_RADIUS: 40,
+
+  // Cuántos vecinos de rumbo afín hacen falta para que un agente no fiel sea "desvío" y no "deriva".
+  // Más alto: cuesta más ser desvío y hay más deriva. Más bajo: casi todo lo no fiel es desvío.
+  COHERENCE_NEIGHBORS: 6,
+
+  // Qué tan parecido debe ser el rumbo de un vecino (coseno del ángulo entre ambos, de -1 a 1).
+  // 0.9 ≈ menos de 26° de diferencia. Más alto: exige rumbos casi idénticos.
+  ALIGN_MIN: 0.9,
+
+  // Cuánto copia un desvío el rumbo de sus vecinos desvío (alineación). Más alto: caminos más rectos y uniformes.
+  ALIGN_WEIGHT: 1.0,
+
+  // Cuánto se acerca un desvío al centro de sus vecinos desvío (cohesión). Más alto: grupos más compactos.
+  COHESION_WEIGHT: 0.6,
+
   // Cada cuántos ms se reevalúa el comportamiento (fiel/desvío/deriva) de un agente.
   CLASSIFY_INTERVAL: 500,
 

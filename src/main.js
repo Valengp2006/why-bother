@@ -4,11 +4,13 @@ import { CONFIG } from './config.js';
 import { recordSample, computeClarity } from './intention.js';
 import { createField, updateField } from './field.js';
 import { createAgent, stepAgent } from './agent.js';
+import { createGrid, buildGrid } from './flock.js';
 import { drawAgents, drawDebug } from './render.js';
 
 new p5((p) => {
   const samples = []; // trayectoria reciente del mouse
   const agents = [];
+  const grid = createGrid(); // malla espacial para buscar vecinos
   let field;
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
   let showDebug = CONFIG.DEBUG_AT_START;
@@ -46,9 +48,11 @@ new p5((p) => {
     updateField(field, p.mouseX, p.mouseY, intention, dt);
     spawn(intention, dt);
 
+    buildGrid(grid, agents, p.width);
+
     // Se avanza cada agente; los que mueren se reemplazan por el último de la lista (más barato que splice).
     for (let i = agents.length - 1; i >= 0; i--) {
-      if (!stepAgent(p, agents[i], field, intention.clarity, dt, now)) {
+      if (!stepAgent(p, agents[i], field, grid, intention.clarity, dt, now)) {
         agents[i] = agents[agents.length - 1];
         agents.pop();
       }
