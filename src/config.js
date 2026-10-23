@@ -11,4 +11,23 @@ export const CONFIG = {
 
   // Color de fondo (oscuridad de inicio). Valor 0-255.
   BACKGROUND: 0,
+
+  // Si el panel de depuración (tecla D) está visible al abrir la página.
+  DEBUG_AT_START: true,
+
+  // --- Intención (el mouse, sin presionar) ---
+  // Cuánta historia del mouse se mira para medir la claridad, en milisegundos.
+  // Más alto: la claridad reacciona más lento y "perdona" cambios bruscos recientes.
+  WINDOW_MS: 1500,
+
+  // Rapidez media mínima (px/segundo) para que haya intención. Por debajo, claridad 0
+  // y (más adelante) no nacen agentes. Más alto: cuesta más activar la intención.
+  MIN_SPEED: 80,
+
+  // Peso de la constancia de dirección en la claridad. W_DIR + W_SPEED debe sumar 1.
+  // Más alto: importa más ir "recto" que ir a ritmo parejo.
+  W_DIR: 0.6,
+
+  // Peso de la constancia de velocidad en la claridad. Más alto: importa más el ritmo parejo.
+  W_SPEED: 0.4,
 };
