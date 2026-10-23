@@ -24,9 +24,25 @@ function velocities(samples) {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-// Devuelve { clarity, active, dirConstancy, speedConstancy, meanSpeed }.
+// Dirección (vector de largo 1) en la que se mueve el mouse justo ahora, mirando las últimas muestras.
+// Se usa para dejar el trazo en el campo; es más inmediata que la dirección promedio de la ventana.
+const RECENT_SAMPLES = 6;
+function recentDirection(samples) {
+  if (samples.length < 2) return { x: 0, y: 0 };
+  const a = samples[Math.max(0, samples.length - 1 - RECENT_SAMPLES)];
+  const b = samples[samples.length - 1];
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  return len > 0 ? { x: (b.x - a.x) / len, y: (b.y - a.y) / len } : { x: 0, y: 0 };
+}
+
+// Devuelve { clarity, active, dirConstancy, speedConstancy, meanSpeed, dir, recentDir }.
+// dir = dirección promedio de la ventana (hacia dónde se extiende el alcance);
+// recentDir = dirección de ahora mismo (lo que se deja en el campo cerca del mouse).
 export function computeClarity(samples) {
-  const idle = { clarity: 0, active: false, dirConstancy: 0, speedConstancy: 0, meanSpeed: 0 };
+  const idle = {
+    clarity: 0, active: false, dirConstancy: 0, speedConstancy: 0, meanSpeed: 0,
+    dir: { x: 0, y: 0 }, recentDir: { x: 0, y: 0 },
+  };
   const vs = velocities(samples);
   if (vs.length < 3) return idle; // muy pocos datos para juzgar
 
@@ -50,5 +66,7 @@ export function computeClarity(samples) {
   const speedConstancy = clamp01(1 - Math.sqrt(variance) / meanSpeed);
 
   const clarity = CONFIG.W_DIR * dirConstancy + CONFIG.W_SPEED * speedConstancy;
-  return { clarity, active: true, dirConstancy, speedConstancy, meanSpeed };
+  const sl = Math.hypot(sx, sy);
+  const dir = sl > 0 ? { x: sx / sl, y: sy / sl } : { x: 0, y: 0 };
+  return { clarity, active: true, dirConstancy, speedConstancy, meanSpeed, dir, recentDir: recentDirection(samples) };
 }
