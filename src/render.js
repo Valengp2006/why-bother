@@ -79,7 +79,7 @@ function drawFieldDebug(p, field) {
 }
 
 // Panel (tecla D): claridad, agentes por comportamiento, juicios por origen (f fiel, d desvío, v deriva, - sin traza) y campo.
-export function drawDebug(p, { samples, intention, agents, field, log }) {
+export function drawDebug(p, { samples, intention, agents, field, log, criteria }) {
   drawFieldDebug(p, field);
 
   const counts = { fiel: 0, desvio: 0, deriva: 0 };
@@ -101,6 +101,7 @@ export function drawDebug(p, { samples, intention, agents, field, log }) {
     `  deriva        ${counts.deriva}`,
     `conservado      f ${log.counts.conserve.fiel} · d ${log.counts.conserve.desvio} · v ${log.counts.conserve.deriva} · - ${log.counts.conserve.ninguno}`,
     `soltado         f ${log.counts.release.fiel} · d ${log.counts.release.desvio} · v ${log.counts.release.deriva} · - ${log.counts.release.ninguno}`,
+    `criterios       ${criteria.length} / ${CONFIG.MAX_CRITERIA}`,
     `fps             ${Math.round(p.frameRate())}`,
   ];
   lines.forEach((l, i) => p.text(l, 16, 16 + i * 18));
@@ -113,13 +114,38 @@ export function drawDebug(p, { samples, intention, agents, field, log }) {
   p.rect(16, barY, 160 * intention.clarity, 10);
 }
 
+// Un abanico tenue que parte de (ox, oy) hacia dir y llega hasta reach px: el alcance de una intención.
+function drawFan(p, ox, oy, dir, reach, rgb, alpha) {
+  if (reach < CONFIG.FIELD_CELL) return;
+  const { x: dx, y: dy } = dir;
+  const nx = -dy, ny = dx; // perpendicular, para el ancho del abanico
+  const steps = 24;
+  p.noStroke();
+  for (let s = 0; s < steps; s++) {
+    const d0 = (s / steps) * reach, d1 = ((s + 1) / steps) * reach;
+    const w0 = 3 + d0 * CONFIG.FAN_SPREAD * 0.5, w1 = 3 + d1 * CONFIG.FAN_SPREAD * 0.5;
+    p.fill(rgb[0], rgb[1], rgb[2], alpha * (1 - s / steps));
+    p.quad(
+      ox + dx * d0 + nx * w0, oy + dy * d0 + ny * w0,
+      ox + dx * d1 + nx * w1, oy + dy * d1 + ny * w1,
+      ox + dx * d1 - nx * w1, oy + dy * d1 - ny * w1,
+      ox + dx * d0 - nx * w0, oy + dy * d0 - ny * w0,
+    );
+  }
+}
+
 // La intención: el trazo del mouse (lo que pone la persona, se desvanece con el tiempo) y, por delante,
 // un abanico tenue con el alcance (hasta dónde llega el campo; lo que pone el sistema).
-export function drawIntention(p, samples, intention) {
-  if (samples.length < 2) return;
+// Cada criterio conservado muestra además su propio abanico dorado: una intención que sigue sin la mano.
+export function drawIntention(p, samples, intention, criteria) {
   const [r, g, b] = RGB.fiel;
   const now = p.millis();
 
+  for (const c of criteria) {
+    drawFan(p, c.x, c.y, c.dir, CONFIG.CRITERION_CLARITY * CONFIG.LOOKAHEAD, GOLD, CONFIG.INTENTION_ALPHA * 0.3);
+  }
+
+  if (samples.length < 2) return;
   p.noFill();
   p.strokeWeight(CONFIG.INTENTION_WEIGHT);
   for (let i = 1; i < samples.length; i++) {
@@ -129,24 +155,8 @@ export function drawIntention(p, samples, intention) {
   }
 
   if (!intention.active) return;
-  const reach = intention.clarity * CONFIG.LOOKAHEAD;
-  if (reach < CONFIG.FIELD_CELL) return;
-  const { x: ox, y: oy } = samples[samples.length - 1];
-  const { x: dx, y: dy } = intention.dir;
-  const nx = -dy, ny = dx; // perpendicular, para el ancho del abanico
-  const steps = 24;
-  p.noStroke();
-  for (let s = 0; s < steps; s++) {
-    const d0 = (s / steps) * reach, d1 = ((s + 1) / steps) * reach;
-    const w0 = 3 + d0 * CONFIG.FAN_SPREAD * 0.5, w1 = 3 + d1 * CONFIG.FAN_SPREAD * 0.5;
-    p.fill(r, g, b, CONFIG.INTENTION_ALPHA * 0.35 * (1 - s / steps));
-    p.quad(
-      ox + dx * d0 + nx * w0, oy + dy * d0 + ny * w0,
-      ox + dx * d1 + nx * w1, oy + dy * d1 + ny * w1,
-      ox + dx * d1 - nx * w1, oy + dy * d1 - ny * w1,
-      ox + dx * d0 - nx * w0, oy + dy * d0 - ny * w0,
-    );
-  }
+  const last = samples[samples.length - 1];
+  drawFan(p, last.x, last.y, intention.dir, intention.clarity * CONFIG.LOOKAHEAD, RGB.fiel, CONFIG.INTENTION_ALPHA * 0.35);
 }
 
 // Instrucción mínima del inicio, centrada y tenue. alpha va de 0 a 1.

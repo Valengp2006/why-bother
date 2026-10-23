@@ -37,23 +37,29 @@ function stamp(field, x, y, dx, dy, radius, weight) {
   }
 }
 
-// El mouse deja su dirección actual alrededor suyo y, además, un abanico por delante.
+// Una intención deja su dirección actual alrededor suya y, además, un abanico por delante.
 // Alcance = claridad × LOOKAHEAD: a más claridad, el campo llega más lejos que la mano.
-export function updateField(field, mouseX, mouseY, intention, dt) {
-  decayField(field, dt);
-  if (!intention.active) return;
-
-  const { recentDir, dir, clarity } = intention;
+// Sirve igual para el mouse y para un criterio conservado (que es una intención que persiste).
+export function stampIntention(field, x, y, dir, recentDir, clarity) {
   if (recentDir.x !== 0 || recentDir.y !== 0) {
-    stamp(field, mouseX, mouseY, recentDir.x, recentDir.y, CONFIG.FIELD_RADIUS, 0.35);
+    stamp(field, x, y, recentDir.x, recentDir.y, CONFIG.FIELD_RADIUS, 0.35);
   }
 
   const reach = clarity * CONFIG.LOOKAHEAD;
   for (let d = CONFIG.FIELD_CELL; d <= reach; d += CONFIG.FIELD_CELL) {
     const radius = CONFIG.FIELD_RADIUS * 0.5 + d * CONFIG.FAN_SPREAD;
     // El peso cae con la distancia: lo lejano se insinúa, lo cercano manda.
-    stamp(field, mouseX + dir.x * d, mouseY + dir.y * d, dir.x, dir.y, radius, 0.12 * (1 - d / reach));
+    stamp(field, x + dir.x * d, y + dir.y * d, dir.x, dir.y, radius, 0.12 * (1 - d / reach));
   }
+}
+
+// Cada cuadro: el campo se desvanece, el mouse deja su intención y cada criterio deja la suya.
+export function updateField(field, mouseX, mouseY, intention, criteria, dt) {
+  decayField(field, dt);
+  if (intention.active) {
+    stampIntention(field, mouseX, mouseY, intention.dir, intention.recentDir, intention.clarity);
+  }
+  for (const c of criteria) stampIntention(field, c.x, c.y, c.dir, c.dir, CONFIG.CRITERION_CLARITY);
 }
 
 // Lee el campo en (x, y). Escribe en `out` para no crear objetos nuevos en cada agente y cada cuadro.

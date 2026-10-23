@@ -24,7 +24,7 @@ export function recordJudgment(log, event) {
 // Lo que se descarga: el registro más los parámetros que definen la sesión.
 export function exportLog(log, nowMs) {
   const keys = ['WINDOW_MS', 'MIN_SPEED', 'W_DIR', 'W_SPEED', 'LOOKAHEAD', 'WANDER_STRENGTH', 'MAX_DEVIATION_ANGLE',
-    'FIDELITY_HIGH', 'FLOCK_RADIUS', 'COHERENCE_NEIGHBORS', 'ALIGN_MIN', 'CONSERVE_RADIUS', 'DECAY', 'DIFFUSION'];
+    'FIDELITY_HIGH', 'CRITERION_CLARITY', 'CRITERION_SPAWN_RATE', 'FLOCK_RADIUS', 'COHERENCE_NEIGHBORS', 'ALIGN_MIN', 'CONSERVE_RADIUS', 'DECAY', 'DIFFUSION'];
   const params = {};
   for (const k of keys) params[k] = CONFIG[k];
   return { ...log, durationMs: Math.round(nowMs), params };

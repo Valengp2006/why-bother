@@ -27,7 +27,17 @@ export function createAgent(p, x, y, dir) {
     fidelity: 0,
     behavior: 'deriva',
     nextClassify: 0,
+    inherited: false, // true si nació de un criterio conservado
   };
+}
+
+// Un agente que nace de un criterio conservado hereda su origen (fiel, desvío o deriva) y no se reclasifica:
+// así la pintura sigue siendo de ese origen y el registro de lo conservado no se contamina.
+export function createInheritedAgent(p, x, y, criterion) {
+  const a = createAgent(p, x, y, criterion.dir);
+  a.inherited = true;
+  a.behavior = criterion.origin;
+  return a;
 }
 
 // Qué tanto sigue este agente la intención ahora mismo.
@@ -52,8 +62,9 @@ export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
   agent.age += dt;
   if (agent.age >= CONFIG.AGENT_LIFETIME) return false;
 
-  agent.fidelity = fidelityOf(clarity, agent.susceptibility);
-  const due = nowMs >= agent.nextClassify;
+  // Los heredados actúan con la claridad del criterio, no con la del mouse: lo conservado ya no depende de tu mano.
+  agent.fidelity = fidelityOf(agent.inherited ? CONFIG.CRITERION_CLARITY : clarity, agent.susceptibility);
+  const due = !agent.inherited && nowMs >= agent.nextClassify;
   if (due || agent.behavior === 'desvio') neighborInfo(grid, agent, info); // vecinos: solo cuando hace falta
   if (due) {
     agent.behavior = classify(agent, info.aligned >= CONFIG.COHERENCE_NEIGHBORS);

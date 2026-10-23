@@ -3,7 +3,8 @@ import p5 from 'p5';
 import { CONFIG } from './config.js';
 import { recordSample, computeClarity } from './intention.js';
 import { createField, updateField } from './field.js';
-import { createAgent, stepAgent } from './agent.js';
+import { createAgent, createInheritedAgent, stepAgent } from './agent.js';
+import { createCriteria } from './criteria.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails } from './trails.js';
 import { judge } from './judgment.js';
@@ -18,6 +19,7 @@ if (import.meta.env.DEV) window.__CONFIG = CONFIG;
 new p5((p) => {
   const samples = []; // trayectoria reciente del mouse
   const agents = [];
+  const criteria = createCriteria(); // lo conservado que sigue emitiendo
   const grid = createGrid(); // malla espacial para buscar vecinos
   let field;
   let trails;
@@ -52,6 +54,21 @@ new p5((p) => {
     }
   }
 
+  // Cada criterio (zona conservada con flujo claro) emite agentes con su dirección y su origen,
+  // aunque el mouse esté lejos o quieto: lo conservado sigue su camino sin la mano.
+  function spawnFromCriteria(dt) {
+    for (const c of criteria) {
+      c.carry += CONFIG.CRITERION_SPAWN_RATE * dt;
+      while (c.carry >= 1) {
+        c.carry -= 1;
+        if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
+        const angle = p.random(p.TWO_PI);
+        const dist = p.random(CONFIG.SPAWN_RADIUS);
+        agents.push(createInheritedAgent(p, c.x + Math.cos(angle) * dist, c.y + Math.sin(angle) * dist, c));
+      }
+    }
+  }
+
   p.draw = () => {
     const dt = Math.min(p.deltaTime / 1000, 0.05); // segundos; se acota para que una pausa no dispare la simulación
     const now = p.millis();
@@ -61,8 +78,9 @@ new p5((p) => {
     recordSample(samples, p.mouseX, p.mouseY, now);
     const intention = computeClarity(samples);
 
-    updateField(field, p.mouseX, p.mouseY, intention, dt);
+    updateField(field, p.mouseX, p.mouseY, intention, criteria, dt);
     spawn(intention, dt);
+    spawnFromCriteria(dt);
 
     buildGrid(grid, agents, p.width);
 
@@ -88,16 +106,16 @@ new p5((p) => {
     updateNarrative(narrative, { intentionActive: intention.active, counts }, now);
 
     drawTrails(p, trails);
-    if (CONFIG.SHOW_INTENTION) drawIntention(p, samples, intention);
+    if (CONFIG.SHOW_INTENTION) drawIntention(p, samples, intention, criteria);
     if (showDebug || CONFIG.SHOW_AGENTS) drawAgents(p, agents);
     drawHint(p, hintAlpha);
     drawNarrative(p, narrative, now);
-    if (showDebug) drawDebug(p, { samples, intention, agents, field, log });
+    if (showDebug) drawDebug(p, { samples, intention, agents, field, log, criteria });
   };
 
   // Clic: conservar. Clic derecho o Shift+clic: soltar. El primer clic de la sesión solo inicia el audio.
   p.mousePressed = (event) => {
-    judge(trails, log, event, p.mouseX, p.mouseY, p.millis());
+    judge(trails, log, criteria, event, p.mouseX, p.mouseY, p.millis());
   };
 
   p.keyPressed = () => {

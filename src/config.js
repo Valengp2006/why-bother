@@ -115,6 +115,25 @@ export const CONFIG = {
   // Por debajo se registra igual, pero con origen 'ninguno'. Más alto: exige más pintura bajo el cursor.
   JUDGMENT_MIN_MASS: 0.4,
 
+  // --- Criterio (lo conservado se vuelve una intención persistente) ---
+  // Al conservar una zona se guarda de qué origen era y hacia dónde fluía su pintura. Desde ahí esa zona
+  // sigue emitiendo agentes con esa dirección y proyectando su propio alcance, aunque el mouse esté en otro lado.
+  // Soltar la zona la apaga. Es lo que hace que juzgar tenga consecuencias sobre lo que viene después.
+
+  // Claridad con la que nacen y actúan los agentes de un criterio (0 a 1). Es "qué tan clara quedó" la intención
+  // conservada. Más alto: la siguen con más fidelidad; más bajo: se desvían y derivan más.
+  CRITERION_CLARITY: 0.85,
+
+  // Agentes por segundo que emite cada criterio. Más alto: lo conservado sigue más fuerte; 0 lo deja solo en el campo.
+  CRITERION_SPAWN_RATE: 5,
+
+  // Máximo de criterios activos a la vez. Al pasarlo, el más antiguo deja de emitir (su zona sigue conservada).
+  MAX_CRITERIA: 10,
+
+  // Qué tan alineada debe estar la pintura de una zona (0 a 1; 1 = todo fluía igual) para que cuente como criterio.
+  // Más alto: solo zonas con un flujo claro. Una zona sin dirección clara se conserva, pero no emite.
+  CRITERION_MIN_COHERENCE: 0.3,
+
   // --- Trazas (malla tipo Physarum, un canal por comportamiento) ---
   // Resolución de la malla respecto a la pantalla (0 a 1). 0.25 = una celda por cada 4×4 px.
   // Más alto: trazas más finas y más costo de CPU. Más bajo: manchas más gruesas y suaves.
@@ -204,7 +223,8 @@ export const CONFIG = {
     ],
     juicio: [
       { text: 'Tú decides qué se queda.' },
-      { text: 'Clic: conservar, en dorado. Clic derecho: soltar.', color: 'conservado' },
+      { text: 'Clic: conservar, en dorado. Lo conservado sigue su camino sin ti.', color: 'conservado' },
+      { text: 'Clic derecho: soltar.' },
     ],
   },
 

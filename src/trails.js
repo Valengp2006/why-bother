@@ -15,6 +15,8 @@ export function createTrails(width, height) {
     sx: w / width, sy: h / height,                         // de px de pantalla a celdas
     ch: [new Float32Array(n), new Float32Array(n), new Float32Array(n)],
     tmp: new Float32Array(n),                              // buffer de trabajo para la difusión
+    dirx: new Float32Array(n),                             // rumbo de la pintura: suma de las direcciones de los agentes que depositaron
+    diry: new Float32Array(n),
     cons: new Float32Array(n),                             // máscara de conservadas (0 a 1)
     rel: new Float32Array(n),                              // máscara de soltadas (0 a 1)
     decayK: new Float32Array(n),                           // cuánto queda de cada celda tras este cuadro
@@ -30,7 +32,14 @@ export function deposit(trails, agent, dt) {
   const i = y * trails.w + x;
   const life = 1 - agent.age / CONFIG.AGENT_LIFETIME;
   const c = trails.ch[CHANNEL[agent.behavior]];
-  c[i] = Math.min(CONFIG.TRAIL_MAX, c[i] + CONFIG.DEPOSIT * life * dt);
+  const amount = CONFIG.DEPOSIT * life * dt;
+  c[i] = Math.min(CONFIG.TRAIL_MAX, c[i] + amount);
+  // También se anota hacia dónde iba el agente: al conservar, ese rumbo es lo que se hereda.
+  const speed = Math.hypot(agent.vx, agent.vy);
+  if (speed > 0) {
+    trails.dirx[i] += (agent.vx / speed) * amount;
+    trails.diry[i] += (agent.vy / speed) * amount;
+  }
 }
 
 // Un cuadro de la malla: primero se calcula cuánto decae cada celda (según las máscaras),
@@ -46,6 +55,8 @@ export function updateTrails(trails, dt) {
     let k = base + (keep - base) * cons[i];
     k = k * (1 - rel[i]) + drop * rel[i];
     decayK[i] = k;
+    trails.dirx[i] *= k; // el rumbo se desvanece igual que la pintura
+    trails.diry[i] *= k;
   }
 
   // La difusión se ajusta al tiempo del cuadro, para que se vea igual a 30 o a 120 fps.
@@ -73,12 +84,14 @@ export function measure(trails, x, y) {
   const cx = x * trails.sx, cy = y * trails.sy;
   const x0 = Math.max(0, Math.floor(cx - rx)), x1 = Math.min(trails.w - 1, Math.ceil(cx + rx));
   const y0 = Math.max(0, Math.floor(cy - ry)), y1 = Math.min(trails.h - 1, Math.ceil(cy + ry));
-  const m = { fiel: 0, desvio: 0, deriva: 0, mass: 0, dominant: 'ninguno' };
+  const m = { fiel: 0, desvio: 0, deriva: 0, mass: 0, dominant: 'ninguno', dirx: 0, diry: 0, dirAbs: 0 };
   for (let gy = y0; gy <= y1; gy++) {
     for (let gx = x0; gx <= x1; gx++) {
       if (Math.hypot((gx + 0.5 - cx) / rx, (gy + 0.5 - cy) / ry) >= 1) continue;
       const i = gy * trails.w + gx;
       m.fiel += trails.ch[0][i]; m.desvio += trails.ch[1][i]; m.deriva += trails.ch[2][i];
+      m.dirx += trails.dirx[i]; m.diry += trails.diry[i];
+      m.dirAbs += Math.hypot(trails.dirx[i], trails.diry[i]); // para medir qué tan alineada era la pintura
     }
   }
   m.mass = m.fiel + m.desvio + m.deriva;
