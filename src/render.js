@@ -11,6 +11,44 @@ const RGB = {
   desvio: hexToRgb(CONFIG.COLORS.desvio),
   deriva: hexToRgb(CONFIG.COLORS.deriva),
 };
+const BG = hexToRgb(CONFIG.BACKGROUND);
+const GOLD = hexToRgb(CONFIG.COLORS.conservado);
+
+// Las trazas se pintan en una imagen del tamaño de la malla y se estiran a pantalla completa:
+// el suavizado al agrandarla es lo que les da el aspecto de pintura que se corre.
+let trailImg = null;
+
+// Brillo suave: crece rápido con poca traza y se aplana al saturar (nunca pasa de 1).
+const tone = (v) => 1 - Math.exp(-CONFIG.TRAIL_GAIN * v);
+
+export function drawTrails(p, trails) {
+  if (!trailImg || trailImg.width !== trails.w || trailImg.height !== trails.h) {
+    trailImg = p.createImage(trails.w, trails.h);
+  }
+  trailImg.loadPixels();
+  const px = trailImg.pixels;
+  const [f, d, r] = trails.ch;
+  for (let i = 0; i < f.length; i++) {
+    const tf = tone(f[i]), td = tone(d[i]), tr = tone(r[i]);
+    // Color = fondo + cada canal con su color de la paleta.
+    let R = BG[0] + tf * RGB.fiel[0] + td * RGB.desvio[0] + tr * RGB.deriva[0];
+    let G = BG[1] + tf * RGB.fiel[1] + td * RGB.desvio[1] + tr * RGB.deriva[1];
+    let B = BG[2] + tf * RGB.fiel[2] + td * RGB.desvio[2] + tr * RGB.deriva[2];
+    // Lo conservado se tiñe de dorado, con la intensidad de la traza que hay ahí.
+    // El dorado sigue a la pintura (no a la forma de la máscara): donde no hay traza no se ve.
+    const lum = Math.min(1, tf + td + tr);
+    const gm = trails.cons[i] * CONFIG.GOLD_MIX * Math.min(1, lum * 2.5);
+    if (gm > 0) {
+      R += (BG[0] + GOLD[0] * lum - R) * gm;
+      G += (BG[1] + GOLD[1] * lum - G) * gm;
+      B += (BG[2] + GOLD[2] * lum - B) * gm;
+    }
+    const o = i * 4;
+    px[o] = R; px[o + 1] = G; px[o + 2] = B; px[o + 3] = 255;
+  }
+  trailImg.updatePixels();
+  p.image(trailImg, 0, 0, p.width, p.height);
+}
 
 // Cada agente es un trazo corto orientado según su rumbo; se desvanece a medida que envejece.
 export function drawAgents(p, agents) {

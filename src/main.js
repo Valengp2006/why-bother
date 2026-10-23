@@ -5,13 +5,19 @@ import { recordSample, computeClarity } from './intention.js';
 import { createField, updateField } from './field.js';
 import { createAgent, stepAgent } from './agent.js';
 import { createGrid, buildGrid } from './flock.js';
-import { drawAgents, drawDebug } from './render.js';
+import { createTrails, deposit, updateTrails } from './trails.js';
+import { drawAgents, drawTrails, drawDebug } from './render.js';
+
+// Solo en desarrollo (npm run dev): permite probar valores desde la consola del navegador,
+// por ejemplo  __CONFIG.TRAIL_GAIN = 2  , sin recargar. No existe en la versión publicada.
+if (import.meta.env.DEV) window.__CONFIG = CONFIG;
 
 new p5((p) => {
   const samples = []; // trayectoria reciente del mouse
   const agents = [];
   const grid = createGrid(); // malla espacial para buscar vecinos
   let field;
+  let trails;
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
   let showDebug = CONFIG.DEBUG_AT_START;
 
@@ -21,6 +27,7 @@ new p5((p) => {
     p.randomSeed(CONFIG.RANDOM_SEED);
     p.noiseSeed(CONFIG.RANDOM_SEED);
     field = createField(p.width, p.height);
+    trails = createTrails(p.width, p.height);
   };
 
   // Hace nacer agentes cerca del mouse, en proporción a su rapidez, mientras la intención está activa.
@@ -52,13 +59,18 @@ new p5((p) => {
 
     // Se avanza cada agente; los que mueren se reemplazan por el último de la lista (más barato que splice).
     for (let i = agents.length - 1; i >= 0; i--) {
-      if (!stepAgent(p, agents[i], field, grid, intention.clarity, dt, now)) {
+      if (!stepAgent(p, agents[i], field, grid, trails, intention.clarity, dt, now)) {
         agents[i] = agents[agents.length - 1];
         agents.pop();
+      } else {
+        deposit(trails, agents[i], dt);
       }
     }
 
-    drawAgents(p, agents);
+    updateTrails(trails, dt);
+
+    drawTrails(p, trails);
+    if (showDebug || CONFIG.SHOW_AGENTS) drawAgents(p, agents);
     if (showDebug) drawDebug(p, { samples, intention, agents, field });
   };
 
@@ -70,5 +82,6 @@ new p5((p) => {
   p.windowResized = () => {
     p.resizeCanvas(p.windowWidth, p.windowHeight);
     field = createField(p.width, p.height);
+    trails = createTrails(p.width, p.height); // al redimensionar, las trazas se reinician
   };
 });

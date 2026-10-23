@@ -3,12 +3,14 @@
 import { CONFIG } from './config.js';
 import { sampleField } from './field.js';
 import { neighborInfo, flockForce } from './flock.js';
+import { senseSteer } from './trails.js';
 
 let nextId = 0;
 // Se reutilizan para no crear basura en cada agente y cada cuadro.
 const fieldSample = { strength: 0, dx: 0, dy: 0 };
 const info = { aligned: 0, desvioN: 0, avgVx: 0, avgVy: 0, cx: 0, cy: 0 };
 const flock = { ax: 0, ay: 0 };
+const sense = { ax: 0, ay: 0 };
 
 // Nace en (x, y) con velocidad en la dirección del trazo. La susceptibilidad y el ángulo de desvío
 // son aleatorios pero salen de p.random(), que usa la semilla fija: misma semilla, misma población.
@@ -46,7 +48,7 @@ function rotate(x, y, angle) {
 }
 
 // Un paso de simulación. Devuelve false si el agente murió (vida agotada o fuera de pantalla).
-export function stepAgent(p, agent, field, grid, clarity, dt, nowMs) {
+export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
   agent.age += dt;
   if (agent.age >= CONFIG.AGENT_LIFETIME) return false;
 
@@ -83,6 +85,11 @@ export function stepAgent(p, agent, field, grid, clarity, dt, nowMs) {
     ax += flock.ax;
     ay += flock.ay;
   }
+
+  // Atracción hacia lo conservado: los sensores buscan traza conservada y empujan hacia ella.
+  senseSteer(trails, agent, sense);
+  ax += sense.ax;
+  ay += sense.ay;
 
   agent.vx += ax * dt;
   agent.vy += ay * dt;

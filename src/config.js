@@ -58,10 +58,10 @@ export const CONFIG = {
   PARTICLE_COUNT: 2500,
 
   // Cuánto vive un agente, en segundos, antes de reciclarse. Más alto: más agentes en pantalla y trazos más largos.
-  AGENT_LIFETIME: 5,
+  AGENT_LIFETIME: 7,
 
   // Agentes que nacen por segundo por cada px/s de rapidez del mouse. Más alto: nacen más con el mismo movimiento.
-  SPAWN_RATE: 0.12,
+  SPAWN_RATE: 0.2,
 
   // Distancia máxima (px) del mouse a la que nace un agente.
   SPAWN_RADIUS: 30,
@@ -73,11 +73,11 @@ export const CONFIG = {
   MAX_SPEED: 240,
 
   // Fuerza máxima de giro (px/s²). Más alto: giran más rápido para seguir el campo.
-  MAX_FORCE: 500,
+  MAX_FORCE: 200,
 
   // Ruido (wander) cuando la fidelidad es 0, en px/s². Se multiplica por (1 − fidelidad).
   // Más alto: los poco fieles se agitan más y se dispersan; la fidelidad baja de todos se nota más.
-  WANDER_STRENGTH: 400,
+  WANDER_STRENGTH: 180,
 
   // Qué tan rápido cambia la dirección del ruido (ciclos de ruido por segundo). Más alto: tiembla más; más bajo: curvas suaves.
   WANDER_RATE: 0.6,
@@ -110,7 +110,57 @@ export const CONFIG = {
   // Cada cuántos ms se reevalúa el comportamiento (fiel/desvío/deriva) de un agente.
   CLASSIFY_INTERVAL: 500,
 
+  // --- Trazas (malla tipo Physarum, un canal por comportamiento) ---
+  // Resolución de la malla respecto a la pantalla (0 a 1). 0.25 = una celda por cada 4×4 px.
+  // Más alto: trazas más finas y más costo de CPU. Más bajo: manchas más gruesas y suaves.
+  GRID_SCALE: 0.25,
+
+  // Cuánta traza deposita cada agente por segundo en su celda. Más alto: el color se acumula más rápido y satura.
+  DEPOSIT: 22,
+
+  // Cuánto se mezcla cada celda con sus vecinas por cuadro (0 a 1). Más alto: las trazas se esparcen
+  // más y se ven más como pintura que se corre; 0 deja puntos nítidos.
+  DIFFUSION: 0.12,
+
+  // Cuánto de la traza normal queda después de 1 segundo (0 a 1). Más alto: las trazas duran más.
+  DECAY: 0.85,
+
+  // Cuánto de la traza conservada queda después de 1 segundo. Cerca de 1: casi no se borra.
+  CONSERVE_DECAY: 0.998,
+
+  // Cuánto de la traza soltada queda después de 1 segundo. Más bajo: se desvanece más rápido.
+  RELEASE_DECAY: 0.02,
+
+  // Radio (px) alrededor del cursor al que afecta conservar (clic) o soltar (clic derecho / Shift+clic).
+  CONSERVE_RADIUS: 70,
+
+  // Tope de la traza en una celda. Más alto: permite acumulaciones más intensas antes de saturar.
+  TRAIL_MAX: 3,
+
+  // Sensores tipo Physarum: cada agente mira la traza conservada en tres puntos (izquierda, frente, derecha).
+  // Ángulo (radianes) entre el sensor del frente y los laterales. Más alto: mira más abierto.
+  SENSE_ANGLE: 0.6,
+
+  // A qué distancia (px) del agente están los sensores. Más alto: siente lo conservado desde más lejos.
+  SENSE_DISTANCE: 30,
+
+  // Fuerza (px/s²) con la que un agente es atraído hacia la traza conservada. 0 la desactiva.
+  // Más alto: lo conservado atrae y recoge más agentes (el "punto de partida" pesa más).
+  SENSE_WEIGHT: 350,
+
+  // Intensidad mínima de traza conservada para que un sensor la note.
+  SENSE_MIN: 0.05,
+
   // --- Dibujo ---
+  // Brillo de las trazas al dibujarlas. Más alto: colores más saturados y luminosos; más bajo: más oscuro y tenue.
+  TRAIL_GAIN: 1.8,
+
+  // Cuánto se tiñe de dorado lo conservado (0 a 1). 0 lo deja del color de su origen.
+  GOLD_MIX: 0.75,
+
+  // Si se dibujan también los trazos de los agentes (además de las trazas). Se ven siempre con D activo.
+  SHOW_AGENTS: false,
+
   // Paleta aprobada (ver docs/bitacora/2026-10-23-direccion-visual.md).
   COLORS: {
     fiel: '#e8f1f5',   // blanco hielo cálido
