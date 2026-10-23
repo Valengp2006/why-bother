@@ -172,6 +172,37 @@ export const CONFIG = {
   // Explica el control, no el sentido de la obra.
   HINT_TEXT: 'Mueve el mouse, sin presionar',
 
+  // --- Capa narrativa (frases cortas que explican qué representa cada cosa) ---
+  // Cada frase aparece una sola vez, en orden, cuando su elemento aparece en pantalla, y se desvanece sola.
+  // Describen el mecanismo; no dicen qué es bueno o malo. Si se apaga, la obra queda sin texto salvo la instrucción inicial.
+  NARRATIVE_ENABLED: true,
+
+  // Cuánto dura cada frase en pantalla (ms), contando su aparición y su desvanecimiento.
+  NARRATIVE_MS: 8000,
+
+  // Cuánto se espera (ms) después de la frase de los comportamientos antes de la del juicio.
+  NARRATIVE_JUDGMENT_DELAY: 5000,
+
+  // La frase del juicio habla de clic para conservar y soltar. Se activa en el hito 6, cuando existen los clics.
+  JUDGMENT_ENABLED: false,
+
+  // Los textos. 'color' toma el de la paleta (fiel, desvio, deriva, conservado); sin 'color', el texto es neutro.
+  NARRATIVE_TEXT: {
+    intencion: [
+      { text: 'Tu mano marca una intención. Mientras más clara, más lejos llega.' },
+    ],
+    comportamientos: [
+      { text: 'Lo que nace de ella la interpreta.' },
+      { text: 'Blanco: sigue lo que quisiste.', color: 'fiel' },
+      { text: 'Turquesa: se desvía, pero en grupo.', color: 'desvio' },
+      { text: 'Azul: se pierde.', color: 'deriva' },
+    ],
+    juicio: [
+      { text: 'Tú decides qué se queda.' },
+      { text: 'Clic: conservar, en dorado. Clic derecho: soltar.', color: 'conservado' },
+    ],
+  },
+
   // Si se dibujan también los trazos de los agentes (además de las trazas). Se ven siempre con D activo.
   SHOW_AGENTS: false,
 

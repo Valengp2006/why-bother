@@ -6,6 +6,7 @@ import { createField, updateField } from './field.js';
 import { createAgent, stepAgent } from './agent.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails } from './trails.js';
+import { createNarrative, updateNarrative, drawNarrative } from './narrative.js';
 import { drawAgents, drawTrails, drawIntention, drawHint, drawDebug } from './render.js';
 
 // Solo en desarrollo (npm run dev): permite probar valores desde la consola del navegador,
@@ -19,6 +20,7 @@ new p5((p) => {
   let field;
   let trails;
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
+  const narrative = createNarrative();
   let hintAlpha = 0;      // opacidad de la instrucción inicial
   let started = false;    // se vuelve true cuando la persona empieza a moverse con intención
   let showDebug = CONFIG.DEBUG_AT_START;
@@ -75,10 +77,16 @@ new p5((p) => {
     if (!started && intention.active) started = true;
     hintAlpha += ((started ? 0 : 1) - hintAlpha) * Math.min(1, dt * (started ? 2.5 : 1.2));
 
+    // Cuántos agentes hay de cada comportamiento: la capa narrativa lo usa para saber qué ya está en pantalla.
+    const counts = { fiel: 0, desvio: 0, deriva: 0 };
+    for (const a of agents) counts[a.behavior]++;
+    updateNarrative(narrative, { intentionActive: intention.active, counts }, now);
+
     drawTrails(p, trails);
     if (CONFIG.SHOW_INTENTION) drawIntention(p, samples, intention);
     if (showDebug || CONFIG.SHOW_AGENTS) drawAgents(p, agents);
     drawHint(p, hintAlpha);
+    drawNarrative(p, narrative, now);
     if (showDebug) drawDebug(p, { samples, intention, agents, field });
   };
 

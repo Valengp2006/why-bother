@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js';
 
 // Los colores de la paleta se leen una vez a [r, g, b] (más barato que pedir p.color() en cada agente).
-function hexToRgb(hex) {
+export function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
