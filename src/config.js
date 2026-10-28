@@ -220,6 +220,9 @@ export const CONFIG = {
   // Explica el control, no el sentido de la obra.
   HINT_TEXT: 'Haz clic para comenzar',
 
+  // Segunda invitación: aparece si pasan unos segundos sin que la persona se mueva con intención.
+  HINT2_TEXT: 'Mueve el mouse, sin presionar',
+
   // --- Capa narrativa (frases cortas que explican qué representa cada cosa) ---
   // Cada frase aparece una sola vez, en orden, cuando su elemento aparece en pantalla, y se desvanece sola.
   // Describen el mecanismo; no dicen qué es bueno o malo. Si se apaga, la obra queda sin texto salvo la instrucción inicial.
@@ -230,9 +233,6 @@ export const CONFIG = {
 
   // Cuánto se espera (ms) después de la frase de los comportamientos antes de la del juicio.
   NARRATIVE_JUDGMENT_DELAY: 5000,
-
-  // Si se muestra la frase del juicio (clic para conservar y soltar).
-  JUDGMENT_ENABLED: true,
 
   // Los textos. 'color' toma el de la paleta (fiel, desvio, deriva, conservado); sin 'color', el texto es neutro.
   NARRATIVE_TEXT: {
@@ -249,6 +249,68 @@ export const CONFIG = {
       { text: 'Tú decides qué se queda.' },
       { text: 'Clic: conservar, en dorado. Lo conservado sigue su camino sin ti.', color: 'conservado' },
       { text: 'Clic derecho: soltar.' },
+    ],
+  },
+
+  // --- Preguntas (cada decisión de la persona cambia el mundo) ---
+  // Segundos de espera antes de cada paso de la narración (frase o pregunta). Más alto: da más tiempo a ver lo que cambió.
+  STEP_GAP: 14,
+
+  // Distancia (px) del cursor a una opción para elegirla con el clic.
+  OPTION_RADIUS: 95,
+
+  // Las preguntas, en orden. Son tuyas: cambia los textos, las opciones y qué mueve cada una.
+  // Cada opción tiene un 'effect' con estos valores posibles:
+  //   warmth          suma a la calidez (negativo = más frío, positivo = más cálido). Cambia color y sonido.
+  //   clarityMul      cuánto cuenta la mano (>1: la pintura la sigue más; <1: menos)
+  //   ambientMul      fuerza del ambiente (>1: ríos más firmes; <1: más vagabundos)
+  //   wanderMul       cuánto divagan los agentes
+  //   ambientSpawnMul cuánta pintura emiten solas las fuentes (>1: más; <1: menos)
+  //   senseMul        cuánto atrae lo conservado a los agentes
+  //   criterionRateMul cuánto emite cada zona conservada
+  //   decayMul        qué tan rápido se borra lo que no se conserva
+  //   showMechanism   true muestra el campo y los agentes; false los oculta
+  QUESTIONS: [
+    {
+      id: 'guiar',
+      text: '¿Guías el río o lo dejas ir?',
+      options: [
+        { label: 'Guiarlo', effect: { clarityMul: 1.5, ambientMul: 0.6, warmth: -0.2 } },
+        { label: 'Dejarlo ir', effect: { ambientMul: 1.4, wanderMul: 1.5, warmth: 0.2 } },
+      ],
+    },
+    {
+      id: 'inesperado',
+      text: '¿Qué haces con lo inesperado?',
+      options: [
+        { label: 'Conservarlo', effect: { senseMul: 2.2, criterionRateMul: 1.8, warmth: 0.25 } },
+        { label: 'Soltarlo', effect: { decayMul: 1.6, senseMul: 0.5, warmth: -0.2 } },
+      ],
+    },
+    {
+      id: 'solo',
+      text: '¿Le pides que siga sin ti?',
+      options: [
+        { label: 'Sí', effect: { ambientSpawnMul: 1.8, warmth: 0.15 } },
+        { label: 'No', effect: { ambientSpawnMul: 0.45, warmth: -0.15 } },
+      ],
+    },
+    {
+      id: 'entender',
+      text: '¿Quieres ver cómo funciona?',
+      options: [
+        { label: 'Mostrarme', effect: { showMechanism: true } },
+        { label: 'Prefiero no verlo', effect: { showMechanism: false } },
+      ],
+    },
+  ],
+
+  // Pregunta final: al elegir 'Guardarla' se descarga la obra como imagen. Textos editables.
+  FINAL_QUESTION: {
+    text: 'Esto es lo que decidiste.',
+    options: [
+      { label: 'Guardarla' },
+      { label: 'Seguir creando' },
     ],
   },
 

@@ -1,6 +1,7 @@
 // trails.js — la malla de trazas tipo Physarum: tres canales (fiel, desvío, deriva), difusión,
 // decaimiento, máscaras de conservado y soltado, y los sensores con los que los agentes sienten lo conservado.
 import { CONFIG } from './config.js';
+import { world } from './world.js';
 
 // Índice de cada canal en trails.ch
 // El canal 3 es la pintura dorada: la que depositan los agentes nacidos de un criterio conservado.
@@ -50,7 +51,7 @@ export function updateTrails(trails, dt) {
   const { w, h, decayK, cons, rel } = trails;
 
   // Decaimiento por celda: normal, casi nulo si está conservada, muy rápido si está soltada.
-  const base = Math.pow(CONFIG.DECAY, dt);
+  const base = Math.pow(CONFIG.DECAY, dt * world.decayMul);
   const keep = Math.pow(CONFIG.CONSERVE_DECAY, dt);
   const drop = Math.pow(CONFIG.RELEASE_DECAY, dt);
   for (let i = 0; i < decayK.length; i++) {
@@ -148,7 +149,8 @@ function conservedAt(trails, x, y) {
 // si no, gira hacia el lado que más tiene. Si ninguno la nota, no hay atracción.
 export function senseSteer(trails, agent, out) {
   out.ax = 0; out.ay = 0;
-  if (CONFIG.SENSE_WEIGHT <= 0) return out;
+  const weight = CONFIG.SENSE_WEIGHT * world.senseMul;
+  if (weight <= 0) return out;
   const heading = Math.atan2(agent.vy, agent.vx);
   const d = CONFIG.SENSE_DISTANCE;
   const at = (a) => conservedAt(trails, agent.x + Math.cos(a) * d, agent.y + Math.sin(a) * d);
@@ -159,7 +161,7 @@ export function senseSteer(trails, agent, out) {
 
   let a = heading; // por defecto, recto
   if (front < left || front < right) a = left > right ? heading - CONFIG.SENSE_ANGLE : heading + CONFIG.SENSE_ANGLE;
-  out.ax = Math.cos(a) * CONFIG.SENSE_WEIGHT;
-  out.ay = Math.sin(a) * CONFIG.SENSE_WEIGHT;
+  out.ax = Math.cos(a) * weight;
+  out.ay = Math.sin(a) * weight;
   return out;
 }

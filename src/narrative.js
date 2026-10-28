@@ -1,53 +1,120 @@
-// narrative.js — la capa narrativa: frases cortas que explican qué representa cada cosa.
-// Cada frase aparece UNA vez, en orden, cuando su elemento aparece en pantalla. Los textos viven en config.js.
+// narrative.js — la narración: frases que explican qué representa cada cosa, y luego preguntas
+// cuyas opciones cambian el mundo. Todo se muestra en orden, cuando toca, y los textos viven en config.js.
+//
+// Pasos:  frase (intención) → frase (comportamientos) → frase (juicio) → preguntas → pregunta final.
+// Las frases se desvanecen solas. Las preguntas esperan a que la persona haga clic en una de las dos opciones,
+// que flotan dentro de la pintura.
 import { CONFIG } from './config.js';
 import { getPalette } from './palette.js';
 
 const FADE_IN = 1000;
 const FADE_OUT = 1500;
+const TEXT_GAP_MS = 3000; // entre frases explicativas se espera poco; entre preguntas, STEP_GAP
 
-// Cada beat tiene una condición (ready) que dice cuándo su elemento ya está en pantalla.
-// Un beat solo se muestra después de los anteriores, para que se lean en orden.
-const BEATS = [
-  { id: 'intencion', ready: (s) => s.intentionActive },
-  { id: 'comportamientos', ready: (s) => s.counts.fiel > 0 && s.counts.desvio + s.counts.deriva > 0 },
-  { id: 'juicio', ready: (s, n, now) => CONFIG.JUDGMENT_ENABLED && now - n.lastEnd >= CONFIG.NARRATIVE_JUDGMENT_DELAY },
-];
-
-export function createNarrative() {
-  return { index: 0, current: null, start: 0, lastEnd: 0 };
+// Cada paso dice cuándo le toca (ready). Un paso solo se muestra después de los anteriores.
+function buildSteps() {
+  // Los tiempos se leen de CONFIG en cada cuadro (no al armar la lista), así se pueden cambiar en vivo al probar.
+  const gap = (key) => (s, n, now) => now - n.lastEnd >= (key === 'text' ? TEXT_GAP_MS : CONFIG.STEP_GAP * 1000);
+  const steps = [
+    { type: 'text', id: 'intencion', ready: (s) => s.intentionActive },
+    { type: 'text', id: 'comportamientos', ready: (s, n, now) => gap('text')(s, n, now) && s.counts.fiel > 0 && s.counts.desvio + s.counts.deriva > 0 },
+    { type: 'text', id: 'juicio', ready: gap('text') },
+  ];
+  for (const q of CONFIG.QUESTIONS) steps.push({ type: 'question', id: q.id, question: q, ready: gap('step') });
+  steps.push({ type: 'final', id: 'final', question: CONFIG.FINAL_QUESTION, ready: gap('step') });
+  return steps;
 }
 
-// Decide qué frase toca. state = { intentionActive, counts: { fiel, desvio, deriva } }.
+export function createNarrative() {
+  return { steps: buildSteps(), index: 0, current: null, start: 0, lastEnd: 0, rects: [], done: false };
+}
+
+// Decide qué paso toca. state = { intentionActive, counts: { fiel, desvio, deriva } }.
 export function updateNarrative(n, state, nowMs) {
   if (!CONFIG.NARRATIVE_ENABLED) return;
-  if (n.current && nowMs - n.start >= CONFIG.NARRATIVE_MS) {
+  const cur = n.current;
+  if (cur && cur.type === 'text' && nowMs - n.start >= CONFIG.NARRATIVE_MS) {
     n.current = null;
     n.lastEnd = nowMs;
   }
-  if (!n.current && n.index < BEATS.length && BEATS[n.index].ready(state, n, nowMs)) {
-    n.current = BEATS[n.index].id;
+  if (!n.current && n.index < n.steps.length && n.steps[n.index].ready(state, n, nowMs)) {
+    n.current = n.steps[n.index];
     n.start = nowMs;
     n.index++;
   }
+  if (!n.current && n.index >= n.steps.length) n.done = true;
 }
 
-export function drawNarrative(p, n, nowMs) {
-  if (!n.current) return;
+// Posiciones de las dos opciones: cada una flota despacio alrededor de su ancla (izquierda y derecha).
+function optionPositions(p, nowMs) {
+  const t = nowMs / 1000;
+  return [0, 1].map((i) => ({
+    x: p.width * (i === 0 ? 0.27 : 0.73) + Math.sin(t * 0.5 + i * 2.1) * 40,
+    y: p.height * 0.62 + Math.cos(t * 0.37 + i * 1.3) * 34,
+  }));
+}
+
+// Dibuja el paso actual. mouse = { x, y } para resaltar la opción bajo el cursor.
+export function drawNarrative(p, n, nowMs, mouse) {
+  n.rects = [];
+  const cur = n.current;
+  if (!cur) return;
   const t = nowMs - n.start;
-  const alpha = Math.max(0, Math.min(1, t / FADE_IN, (CONFIG.NARRATIVE_MS - t) / FADE_OUT));
-  const lines = CONFIG.NARRATIVE_TEXT[n.current];
-  const lineH = 28;
   const pal = getPalette();
-  const neutral = pal.fiel;
   p.noStroke();
-  p.textSize(18);
   p.textAlign(p.CENTER, p.CENTER);
-  lines.forEach((l, i) => {
-    // 'deriva' es un azul casi del color del fondo; para leerse como texto se aclara hacia el blanco.
-    let [r, g, b] = l.color ? pal[l.color] : neutral;
-    if (l.color === 'deriva') { r += (neutral[0] - r) * 0.5; g += (neutral[1] - g) * 0.5; b += (neutral[2] - b) * 0.5; }
-    p.fill(r, g, b, 210 * alpha);
-    p.text(l.text, p.width / 2, p.height - 70 - (lines.length - 1 - i) * lineH);
+
+  if (cur.type === 'text') {
+    const alpha = Math.max(0, Math.min(1, t / FADE_IN, (CONFIG.NARRATIVE_MS - t) / FADE_OUT));
+    const lines = CONFIG.NARRATIVE_TEXT[cur.id];
+    const lineH = 28;
+    p.textSize(18);
+    lines.forEach((l, i) => {
+      // 'deriva' es un azul casi del color del fondo; para leerse como texto se aclara hacia el blanco.
+      let [r, g, b] = l.color ? pal[l.color] : pal.fiel;
+      if (l.color === 'deriva') { r += (pal.fiel[0] - r) * 0.5; g += (pal.fiel[1] - g) * 0.5; b += (pal.fiel[2] - b) * 0.5; }
+      p.fill(r, g, b, 210 * alpha);
+      p.text(l.text, p.width / 2, p.height - 70 - (lines.length - 1 - i) * lineH);
+    });
+    return;
+  }
+
+  // Pregunta: el texto abajo y las dos opciones flotando dentro de la pintura.
+  const alpha = Math.min(1, t / (FADE_IN * 1.5));
+  const q = cur.question;
+  p.textSize(24);
+  p.fill(pal.fiel[0], pal.fiel[1], pal.fiel[2], 235 * alpha);
+  p.text(q.text, p.width / 2, p.height - 90);
+
+  const pos = optionPositions(p, nowMs);
+  p.textSize(22);
+  q.options.forEach((opt, i) => {
+    const w = p.textWidth(opt.label) + 56, h = 50;
+    const { x, y } = pos[i];
+    const hover = Math.abs(mouse.x - x) <= w / 2 + 14 && Math.abs(mouse.y - y) <= h / 2 + 14;
+    n.rects[i] = { x, y, w, h };
+    // Un fondo oscuro translúcido para que la palabra se lea sobre la pintura más clara.
+    p.fill(5, 11, 20, (hover ? 215 : 160) * alpha);
+    p.stroke(pal.fiel[0], pal.fiel[1], pal.fiel[2], (hover ? 255 : 130) * alpha);
+    p.strokeWeight(hover ? 2 : 1);
+    p.rect(x - w / 2, y - h / 2, w, h, 25);
+    p.noStroke();
+    p.fill(pal.fiel[0], pal.fiel[1], pal.fiel[2], (hover ? 255 : 215) * alpha);
+    p.text(opt.label, x, y);
   });
+}
+
+// ¿El clic cayó sobre una opción? Si sí, el paso termina y se devuelve la elección; si no, null.
+export function narrativeClick(n, x, y, nowMs) {
+  const cur = n.current;
+  if (!cur || cur.type === 'text') return null;
+  for (let i = 0; i < n.rects.length; i++) {
+    const r = n.rects[i];
+    if (r && Math.abs(x - r.x) <= r.w / 2 + 14 && Math.abs(y - r.y) <= r.h / 2 + 14) {
+      n.current = null;
+      n.lastEnd = nowMs;
+      return { step: cur, optionIndex: i, option: cur.question.options[i] };
+    }
+  }
+  return null;
 }

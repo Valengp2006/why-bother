@@ -7,7 +7,9 @@ export function createLog() {
   return {
     seed: CONFIG.RANDOM_SEED,
     startedAt: new Date().toISOString(),
-    events: [], // un evento por juicio
+    events: [], // un evento por juicio (conservar o soltar)
+    choices: [], // una entrada por decisión en la narración (qué pregunta y qué opción eligió)
+    final: null, // cómo quedó la obra al guardarla: la calidez y una miniatura para compararla con la de otras personas
     counts: {
       conserve: { fiel: 0, desvio: 0, deriva: 0, ninguno: 0 },
       release: { fiel: 0, desvio: 0, deriva: 0, ninguno: 0 },
@@ -19,6 +21,18 @@ export function createLog() {
 export function recordJudgment(log, event) {
   log.events.push(event);
   log.counts[event.action][event.dominant]++;
+}
+
+// Una decisión de la narración: qué pregunta y qué opción eligió la persona.
+export function recordChoice(log, nowMs, choice) {
+  log.choices.push({
+    t: Math.round(nowMs), question: choice.step.id, optionIndex: choice.optionIndex, option: choice.option.label,
+  });
+}
+
+// Al guardar la obra: la dejamos anotada con el estado del mundo y una miniatura para comparar.
+export function recordFinal(log, nowMs, world, thumb) {
+  log.final = { t: Math.round(nowMs), warmth: +world.warmth.toFixed(2), thumb };
 }
 
 // Lo que se descarga: el registro más los parámetros que definen la sesión.

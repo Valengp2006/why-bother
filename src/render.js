@@ -62,7 +62,7 @@ export function drawAgents(p, agents) {
 }
 
 // Flechas tenues del campo, para ver qué dejó el trazo y hasta dónde llega.
-function drawFieldDebug(p, field) {
+export function drawFieldDebug(p, field) {
   const cell = CONFIG.FIELD_CELL;
   p.strokeWeight(1);
   for (let r = 0; r < field.rows; r++) {
@@ -160,12 +160,30 @@ export function drawIntention(p, samples, intention, criteria) {
 }
 
 // Instrucción mínima del inicio, centrada y tenue. alpha va de 0 a 1.
-export function drawHint(p, alpha) {
+export function drawHint(p, alpha, text = CONFIG.HINT_TEXT) {
   if (alpha < 0.01) return;
   const [r, g, b] = getPalette().fiel;
   p.noStroke();
   p.fill(r, g, b, 150 * alpha);
   p.textSize(18);
   p.textAlign(p.CENTER, p.CENTER);
-  p.text(CONFIG.HINT_TEXT, p.width / 2, p.height / 2);
+  p.text(text, p.width / 2, p.height / 2);
+}
+
+// Miniatura de la última pintura dibujada (cols × rows, promedio por bloque): sirve para comparar,
+// entre personas, si decisiones distintas dieron obras distintas. Devuelve { cols, rows, data: [r,g,b, r,g,b, ...] }.
+export function thumbnail(cols, rows) {
+  if (!trailImg) return { cols, rows, data: [] };
+  const w = trailImg.width, h = trailImg.height, px = trailImg.pixels;
+  const data = [];
+  for (let by = 0; by < rows; by++) {
+    for (let bx = 0; bx < cols; bx++) {
+      const x0 = Math.floor((bx * w) / cols), x1 = Math.max(x0 + 1, Math.floor(((bx + 1) * w) / cols));
+      const y0 = Math.floor((by * h) / rows), y1 = Math.max(y0 + 1, Math.floor(((by + 1) * h) / rows));
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * w + x) * 4; r += px[o]; g += px[o + 1]; b += px[o + 2]; n++; }
+      data.push(Math.round(r / n), Math.round(g / n), Math.round(b / n));
+    }
+  }
+  return { cols, rows, data };
 }
