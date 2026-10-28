@@ -2,6 +2,8 @@
 
 > Para usar en un repo nuevo, guárdalo como `AGENT.md` (o referencia desde un `CLAUDE.md` con "Lee AGENT.md antes de empezar").
 
+> **NOTA (28/10/2026): cambio de rumbo.** La obra cambió de "intención contra fidelidad" a "las decisiones de la persona hacen suya una obra que ejecuta el sistema": pintura viva, narración con preguntas, obra final guardable y sonido de agua y viento. Lo vigente está en `docs/bitacora/2026-10-28-nuevo-rumbo.md` y en `docs/presentacion-borrador.md`. Las secciones 3 y 7 de este archivo describen el diseño anterior y quedaron en parte superadas; las restricciones (sección 2) siguen valiendo salvo donde la bitácora diga lo contrario.
+
 Este archivo es el contexto de trabajo para el agente. Léelo completo antes de tocar código. Si algo aquí contradice una instrucción puntual de Valen en el chat, manda el chat; avísale de la diferencia. El diseño ya está definido; el trabajo es implementarlo bien y que Valen pueda entenderlo y defenderlo.
 
 ## 1. Qué estamos construyendo
