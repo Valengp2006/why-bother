@@ -1,4 +1,4 @@
-# Lo que quise decir (Why Bother?)
+# Cauce (Why Bother?)
 
 Unidad 8 de Simulación: una obra computacional sobre la pregunta *"¿Para qué tomarte el trabajo?"*.
 Contexto completo en [AGENT.md](AGENT.md) y [docs/ficha-diseno.md](docs/ficha-diseno.md).

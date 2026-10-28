@@ -26,7 +26,7 @@ export const CONFIG = {
 
   // --- Inicio y prólogo (la historia empieza en la pantalla de inicio y fluye con la imagen y el sonido) ---
   // Título de la obra en la pantalla de inicio. Debajo va HINT_TEXT ('Haz clic para comenzar').
-  TITLE: 'Lo que quise decir',
+  TITLE: 'Cauce',
 
   // Segundos que tarda la pintura en florecer desde la oscuridad tras el primer clic (y el sonido en subir).
   // Más alto: el inicio es más lento y contemplativo; más bajo: arranca de una vez.
@@ -323,7 +323,7 @@ export const CONFIG = {
     // antes de la IA el esfuerzo técnico era la barrera; ahora lo que queda como tuyo es el sentido. Edítalo con tus palabras.
     prologo1: [{ text: 'Antes, imaginar algo así podía tomar años.' }],
     prologo2: [{ text: 'Ahora, una intención basta para ponerlo en movimiento.' }],
-    prologo3: [{ text: 'Pero lo que quiere decir, lo decides tú.' }],
+    prologo3: [{ text: 'Pero por dónde corre, lo decides tú.' }],
     intencion: [
       { text: 'Tu mano marca una intención. Mientras más clara, más lejos llega.' },
     ],

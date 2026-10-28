@@ -227,7 +227,7 @@ new p5((p) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lo-que-quise-decir-${session.startedAt.replace(/[:.]/g, '-')}.png`;
+      a.download = `cauce-${session.startedAt.replace(/[:.]/g, '-')}.png`;
       a.click();
       URL.revokeObjectURL(url);
     });
