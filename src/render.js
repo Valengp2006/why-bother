@@ -1,18 +1,10 @@
 // render.js — dibujo: los agentes (trazos orientados) y el panel de depuración (tecla D).
 import { CONFIG } from './config.js';
 
-// Los colores de la paleta se leen una vez a [r, g, b] (más barato que pedir p.color() en cada agente).
-export function hexToRgb(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-const RGB = {
-  fiel: hexToRgb(CONFIG.COLORS.fiel),
-  desvio: hexToRgb(CONFIG.COLORS.desvio),
-  deriva: hexToRgb(CONFIG.COLORS.deriva),
-};
+import { getPalette, hexToRgb } from './palette.js';
+export { hexToRgb };
+
 const BG = hexToRgb(CONFIG.BACKGROUND);
-const GOLD = hexToRgb(CONFIG.COLORS.conservado);
 
 // Las trazas se pintan en una imagen del tamaño de la malla y se estiran a pantalla completa:
 // el suavizado al agrandarla es lo que les da el aspecto de pintura que se corre.
@@ -27,21 +19,27 @@ export function drawTrails(p, trails) {
   }
   trailImg.loadPixels();
   const px = trailImg.pixels;
-  const [f, d, r] = trails.ch;
+  const pal = getPalette();
+  const C = [pal.fiel, pal.desvio, pal.deriva];
+  const gold = pal.conservado;
+  const [f, d, r, g] = trails.ch;
   for (let i = 0; i < f.length; i++) {
     const tf = tone(f[i]), td = tone(d[i]), tr = tone(r[i]);
     // Color = fondo + cada canal con su color de la paleta.
-    let R = BG[0] + tf * RGB.fiel[0] + td * RGB.desvio[0] + tr * RGB.deriva[0];
-    let G = BG[1] + tf * RGB.fiel[1] + td * RGB.desvio[1] + tr * RGB.deriva[1];
-    let B = BG[2] + tf * RGB.fiel[2] + td * RGB.desvio[2] + tr * RGB.deriva[2];
-    // Lo conservado se tiñe de dorado, con la intensidad de la traza que hay ahí.
-    // El dorado sigue a la pintura (no a la forma de la máscara): donde no hay traza no se ve.
-    const lum = Math.min(1, tf + td + tr);
-    const gm = trails.cons[i] * CONFIG.GOLD_MIX * Math.min(1, lum * 2.5);
-    if (gm > 0) {
-      R += (BG[0] + GOLD[0] * lum - R) * gm;
-      G += (BG[1] + GOLD[1] * lum - G) * gm;
-      B += (BG[2] + GOLD[2] * lum - B) * gm;
+    let R = BG[0] + tf * C[0][0] + td * C[1][0] + tr * C[2][0];
+    let G = BG[1] + tf * C[0][1] + td * C[1][1] + tr * C[2][1];
+    let B = BG[2] + tf * C[0][2] + td * C[1][2] + tr * C[2][2];
+    // Recorte que conserva el tono: si un canal pasa de 255 se escala todo, así el color no se quema a blanco.
+    const mx = Math.max(R, G, B);
+    if (mx > 255) { const k = 255 / mx; R *= k; G *= k; B *= k; }
+    // El dorado (lo que nace de lo conservado) se superpone a la pintura en vez de sumarse: si se sumara
+    // al turquesa se lavaría a un amarillo pálido. Con poco dorado se ve una veta; con mucho, domina.
+    const a = Math.min(0.85, g[i] * CONFIG.GOLD_COVER);
+    if (a > 0) {
+      const lit = Math.min(1, 0.5 + g[i] * 0.35);
+      R = R * (1 - a) + gold[0] * lit * a;
+      G = G * (1 - a) + gold[1] * lit * a;
+      B = B * (1 - a) + gold[2] * lit * a;
     }
     const o = i * 4;
     px[o] = R; px[o + 1] = G; px[o + 2] = B; px[o + 3] = 255;
@@ -52,11 +50,12 @@ export function drawTrails(p, trails) {
 
 // Cada agente es un trazo corto orientado según su rumbo; se desvanece a medida que envejece.
 export function drawAgents(p, agents) {
+  const pal = getPalette();
   p.strokeWeight(CONFIG.AGENT_STROKE_WEIGHT);
   for (const a of agents) {
     const speed = Math.hypot(a.vx, a.vy) || 1;
     const alpha = 255 * (1 - a.age / CONFIG.AGENT_LIFETIME);
-    const [r, g, b] = RGB[a.behavior];
+    const [r, g, b] = pal[a.behavior];
     p.stroke(r, g, b, alpha);
     p.line(a.x, a.y, a.x - (a.vx / speed) * CONFIG.AGENT_STROKE_LEN, a.y - (a.vy / speed) * CONFIG.AGENT_STROKE_LEN);
   }
@@ -138,11 +137,12 @@ function drawFan(p, ox, oy, dir, reach, rgb, alpha) {
 // un abanico tenue con el alcance (hasta dónde llega el campo; lo que pone el sistema).
 // Cada criterio conservado muestra además su propio abanico dorado: una intención que sigue sin la mano.
 export function drawIntention(p, samples, intention, criteria) {
-  const [r, g, b] = RGB.fiel;
+  const pal = getPalette();
+  const [r, g, b] = pal.fiel;
   const now = p.millis();
 
   for (const c of criteria) {
-    drawFan(p, c.x, c.y, c.dir, CONFIG.CRITERION_CLARITY * CONFIG.LOOKAHEAD, GOLD, CONFIG.INTENTION_ALPHA * 0.3);
+    drawFan(p, c.x, c.y, c.dir, CONFIG.CRITERION_CLARITY * CONFIG.LOOKAHEAD, pal.conservado, CONFIG.INTENTION_ALPHA * 0.3);
   }
 
   if (samples.length < 2) return;
@@ -156,13 +156,13 @@ export function drawIntention(p, samples, intention, criteria) {
 
   if (!intention.active) return;
   const last = samples[samples.length - 1];
-  drawFan(p, last.x, last.y, intention.dir, intention.clarity * CONFIG.LOOKAHEAD, RGB.fiel, CONFIG.INTENTION_ALPHA * 0.35);
+  drawFan(p, last.x, last.y, intention.dir, intention.clarity * CONFIG.LOOKAHEAD, pal.fiel, CONFIG.INTENTION_ALPHA * 0.35);
 }
 
 // Instrucción mínima del inicio, centrada y tenue. alpha va de 0 a 1.
 export function drawHint(p, alpha) {
   if (alpha < 0.01) return;
-  const [r, g, b] = RGB.fiel;
+  const [r, g, b] = getPalette().fiel;
   p.noStroke();
   p.fill(r, g, b, 150 * alpha);
   p.textSize(18);

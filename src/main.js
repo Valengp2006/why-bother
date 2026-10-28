@@ -8,6 +8,9 @@ import { createCriteria } from './criteria.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails } from './trails.js';
 import { judge } from './judgment.js';
+import { updateWorld } from './world.js';
+import { wellPosition, ambientDir } from './ambient.js';
+import { startAudio } from './audio.js';
 import { createLog, downloadLog } from './log.js';
 import { createNarrative, updateNarrative, drawNarrative } from './narrative.js';
 import { drawAgents, drawTrails, drawIntention, drawHint, drawDebug } from './render.js';
@@ -23,11 +26,13 @@ new p5((p) => {
   const grid = createGrid(); // malla espacial para buscar vecinos
   let field;
   let trails;
+  const wellCarry = new Array(CONFIG.AMBIENT_WELLS).fill(0); // fracción de agente que sobra, por fuente
+  const tmp = { x: 0, y: 0 }, tmpDir = { x: 0, y: 0 };
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
   const narrative = createNarrative();
   const log = createLog();
   let hintAlpha = 0;      // opacidad de la instrucción inicial
-  let started = false;    // se vuelve true cuando la persona empieza a moverse con intención
+  let started = false;    // true desde el primer clic: ahí empieza la pintura (y el audio, que el navegador exige iniciar con un gesto)
   let showDebug = CONFIG.DEBUG_AT_START;
 
   p.setup = () => {
@@ -54,6 +59,24 @@ new p5((p) => {
     }
   }
 
+  // Las fuentes del ambiente emiten agentes solas, sin mano: son los ríos que vagan por la pantalla.
+  function spawnAmbient(dt, tSec) {
+    if (CONFIG.AMBIENT_SPAWN_RATE <= 0) return;
+    for (let i = 0; i < CONFIG.AMBIENT_WELLS; i++) {
+      wellCarry[i] += CONFIG.AMBIENT_SPAWN_RATE * dt;
+      if (wellCarry[i] < 1) continue;
+      wellPosition(p, i, tSec, p.width, p.height, tmp);
+      ambientDir(p, tmp.x, tmp.y, tSec, tmpDir);
+      while (wellCarry[i] >= 1) {
+        wellCarry[i] -= 1;
+        if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
+        const angle = p.random(p.TWO_PI);
+        const dist = p.random(CONFIG.SPAWN_RADIUS);
+        agents.push(createAgent(p, tmp.x + Math.cos(angle) * dist, tmp.y + Math.sin(angle) * dist, tmpDir));
+      }
+    }
+  }
+
   // Cada criterio (zona conservada con flujo claro) emite agentes con su dirección y su origen,
   // aunque el mouse esté lejos o quieto: lo conservado sigue su camino sin la mano.
   function spawnFromCriteria(dt) {
@@ -74,12 +97,21 @@ new p5((p) => {
     const now = p.millis();
     p.background(CONFIG.BACKGROUND);
 
+    // Antes del primer clic: oscuridad y silencio, solo la invitación a empezar.
+    if (!started) {
+      hintAlpha += (1 - hintAlpha) * Math.min(1, dt * 1.2);
+      drawHint(p, hintAlpha);
+      return;
+    }
+
     // Se muestrea cada cuadro (aunque el mouse esté quieto: quedarse quieto también cuenta).
     recordSample(samples, p.mouseX, p.mouseY, now);
     const intention = computeClarity(samples);
 
+    updateWorld(dt);
     updateField(field, p.mouseX, p.mouseY, intention, criteria, dt);
     spawn(intention, dt);
+    spawnAmbient(dt, now / 1000);
     spawnFromCriteria(dt);
 
     buildGrid(grid, agents, p.width);
@@ -96,9 +128,8 @@ new p5((p) => {
 
     updateTrails(trails, dt);
 
-    // La instrucción aparece despacio en la oscuridad y se desvanece cuando la persona empieza.
-    if (!started && intention.active) started = true;
-    hintAlpha += ((started ? 0 : 1) - hintAlpha) * Math.min(1, dt * (started ? 2.5 : 1.2));
+    // La invitación inicial se desvanece cuando la persona hace clic.
+    hintAlpha += (0 - hintAlpha) * Math.min(1, dt * 2.5);
 
     // Cuántos agentes hay de cada comportamiento: la capa narrativa lo usa para saber qué ya está en pantalla.
     const counts = { fiel: 0, desvio: 0, deriva: 0 };
@@ -115,6 +146,11 @@ new p5((p) => {
 
   // Clic: conservar. Clic derecho o Shift+clic: soltar. El primer clic de la sesión solo inicia el audio.
   p.mousePressed = (event) => {
+    if (!started) {          // el primer clic de la sesión solo inicia el audio y la obra: no cuenta como juicio
+      started = true;
+      startAudio();
+      return;
+    }
     judge(trails, log, criteria, event, p.mouseX, p.mouseY, p.millis());
   };
 

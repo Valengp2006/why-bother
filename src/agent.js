@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 import { sampleField } from './field.js';
 import { neighborInfo, flockForce } from './flock.js';
 import { senseSteer } from './trails.js';
+import { ambientDir } from './ambient.js';
 
 let nextId = 0;
 // Se reutilizan para no crear basura en cada agente y cada cuadro.
@@ -11,6 +12,7 @@ const fieldSample = { strength: 0, dx: 0, dy: 0 };
 const info = { aligned: 0, desvioN: 0, avgVx: 0, avgVy: 0, cx: 0, cy: 0 };
 const flock = { ax: 0, ay: 0 };
 const sense = { ax: 0, ay: 0 };
+const ambient = { x: 0, y: 0 };
 
 // Nace en (x, y) con velocidad en la dirección del trazo. La susceptibilidad y el ángulo de desvío
 // son aleatorios pero salen de p.random(), que usa la semilla fija: misma semilla, misma población.
@@ -77,9 +79,21 @@ export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
   let ax = Math.cos(wanderAngle) * wanderMag;
   let ay = Math.sin(wanderAngle) * wanderMag;
 
-  // Si hay campo aquí: dirección deseada = la del campo, rotada por el desvío × (1 − fidelidad).
-  // Fuera del campo solo queda el wander.
+  // Ambiente: la corriente que cambia sola empuja a todos, pero cede donde hay trazo (ahí manda la mano).
   sampleField(field, agent.x, agent.y, fieldSample);
+  const free = 1 - Math.min(1, fieldSample.strength); // 1 = fuera del trazo, 0 = dentro
+  if (free > 0 && CONFIG.AMBIENT_STRENGTH > 0) {
+    ambientDir(p, agent.x, agent.y, nowMs / 1000, ambient);
+    let sx = ambient.x * CONFIG.MAX_SPEED * 0.7 - agent.vx;
+    let sy = ambient.y * CONFIG.MAX_SPEED * 0.7 - agent.vy;
+    const sl = Math.hypot(sx, sy);
+    const cap = CONFIG.AMBIENT_STRENGTH * free;
+    if (sl > cap) { sx *= cap / sl; sy *= cap / sl; }
+    ax += sx;
+    ay += sy;
+  }
+
+  // Si hay campo aquí: dirección deseada = la del campo, rotada por el desvío × (1 − fidelidad).
   if (fieldSample.strength >= CONFIG.FIELD_MIN_STRENGTH) {
     const d = rotate(fieldSample.dx, fieldSample.dy, agent.deviation * (1 - agent.fidelity));
     let sx = d.x * CONFIG.MAX_SPEED - agent.vx; // steering = velocidad deseada − velocidad actual

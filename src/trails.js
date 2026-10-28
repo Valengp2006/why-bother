@@ -3,7 +3,9 @@
 import { CONFIG } from './config.js';
 
 // Índice de cada canal en trails.ch
-export const CHANNEL = { fiel: 0, desvio: 1, deriva: 2 };
+// El canal 3 es la pintura dorada: la que depositan los agentes nacidos de un criterio conservado.
+// Va aparte para que lo conservado se vea como ríos dorados y no contamine el registro de origen (canales 0 a 2).
+export const CHANNEL = { fiel: 0, desvio: 1, deriva: 2, conservado: 3 };
 
 // Malla de baja resolución: una celda cubre 1 / GRID_SCALE px de pantalla.
 export function createTrails(width, height) {
@@ -13,7 +15,7 @@ export function createTrails(width, height) {
   return {
     w, h,
     sx: w / width, sy: h / height,                         // de px de pantalla a celdas
-    ch: [new Float32Array(n), new Float32Array(n), new Float32Array(n)],
+    ch: [new Float32Array(n), new Float32Array(n), new Float32Array(n), new Float32Array(n)],
     tmp: new Float32Array(n),                              // buffer de trabajo para la difusión
     dirx: new Float32Array(n),                             // rumbo de la pintura: suma de las direcciones de los agentes que depositaron
     diry: new Float32Array(n),
@@ -31,7 +33,7 @@ export function deposit(trails, agent, dt) {
   if (x < 0 || y < 0 || x >= trails.w || y >= trails.h) return;
   const i = y * trails.w + x;
   const life = 1 - agent.age / CONFIG.AGENT_LIFETIME;
-  const c = trails.ch[CHANNEL[agent.behavior]];
+  const c = trails.ch[agent.inherited ? CHANNEL.conservado : CHANNEL[agent.behavior]];
   const amount = CONFIG.DEPOSIT * life * dt;
   c[i] = Math.min(CONFIG.TRAIL_MAX, c[i] + amount);
   // También se anota hacia dónde iba el agente: al conservar, ese rumbo es lo que se hereda.
@@ -138,7 +140,7 @@ function conservedAt(trails, x, y) {
   if (gx < 0 || gy < 0 || gx >= trails.w || gy >= trails.h) return 0;
   const i = gy * trails.w + gx;
   if (trails.cons[i] < SENSE_MASK_MIN) return 0;
-  return trails.ch[0][i] + trails.ch[1][i] + trails.ch[2][i];
+  return trails.ch[0][i] + trails.ch[1][i] + trails.ch[2][i] + trails.ch[3][i];
 }
 
 // Sensores tipo Physarum: se mira la traza conservada a la izquierda, al frente y a la derecha del agente,

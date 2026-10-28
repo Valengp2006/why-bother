@@ -53,6 +53,29 @@ export const CONFIG = {
   // Fuerza mínima del campo para que un agente lo "sienta". Por debajo, el agente solo hace wander.
   FIELD_MIN_STRENGTH: 0.08,
 
+  // --- Ambiente (la pintura se mueve sola, sin necesidad de la mano) ---
+  // Un campo de corrientes que cambia despacio con el tiempo (ruido en forma de remolinos) mueve a los agentes
+  // por toda la pantalla. La mano es una perturbación: donde hay trazo manda el trazo; fuera de él manda el ambiente.
+
+  // Fuerza (px/s²) con la que el ambiente empuja a un agente. Más alto: los ríos son más firmes y rectos;
+  // más bajo: los agentes vagan más a su aire.
+  AMBIENT_STRENGTH: 300,
+
+  // Tamaño de los remolinos: frecuencia espacial del ruido (1/px). Más alto: remolinos más chicos y más numerosos.
+  AMBIENT_SCALE: 0.0018,
+
+  // Rapidez con la que cambia el ambiente (ciclos de ruido por segundo). Más alto: las corrientes se reordenan rápido.
+  AMBIENT_RATE: 0.05,
+
+  // Cuántas fuentes (manantiales) emiten agentes por sí solas, vague con el ambiente por la pantalla.
+  AMBIENT_WELLS: 4,
+
+  // Agentes por segundo que emite cada fuente. Más alto: más pintura sin que la persona haga nada; 0 apaga el ambiente.
+  AMBIENT_SPAWN_RATE: 28,
+
+  // Qué tan rápido se mueven las fuentes por la pantalla (ciclos de ruido por segundo).
+  AMBIENT_WELL_SPEED: 0.03,
+
   // --- Agentes ---
   // Máximo de agentes vivos a la vez. Más alto: más denso, más costo de CPU.
   PARTICLE_COUNT: 2500,
@@ -95,7 +118,7 @@ export const CONFIG = {
 
   // Cuántos vecinos de rumbo afín hacen falta para que un agente no fiel sea "desvío" y no "deriva".
   // Más alto: cuesta más ser desvío y hay más deriva. Más bajo: casi todo lo no fiel es desvío.
-  COHERENCE_NEIGHBORS: 6,
+  COHERENCE_NEIGHBORS: 4,
 
   // Qué tan parecido debe ser el rumbo de un vecino (coseno del ángulo entre ambos, de -1 a 1).
   // 0.9 ≈ menos de 26° de diferencia. Más alto: exige rumbos casi idénticos.
@@ -125,7 +148,7 @@ export const CONFIG = {
   CRITERION_CLARITY: 0.85,
 
   // Agentes por segundo que emite cada criterio. Más alto: lo conservado sigue más fuerte; 0 lo deja solo en el campo.
-  CRITERION_SPAWN_RATE: 5,
+  CRITERION_SPAWN_RATE: 10,
 
   // Máximo de criterios activos a la vez. Al pasarlo, el más antiguo deja de emitir (su zona sigue conservada).
   MAX_CRITERIA: 10,
@@ -150,7 +173,7 @@ export const CONFIG = {
   DECAY: 0.85,
 
   // Cuánto de la traza conservada queda después de 1 segundo. Cerca de 1: casi no se borra.
-  CONSERVE_DECAY: 0.998,
+  CONSERVE_DECAY: 0.95,
 
   // Cuánto de la traza soltada queda después de 1 segundo. Más bajo: se desvanece más rápido.
   RELEASE_DECAY: 0.02,
@@ -179,8 +202,9 @@ export const CONFIG = {
   // Brillo de las trazas al dibujarlas. Más alto: colores más saturados y luminosos; más bajo: más oscuro y tenue.
   TRAIL_GAIN: 1.8,
 
-  // Cuánto se tiñe de dorado lo conservado (0 a 1). 0 lo deja del color de su origen.
-  GOLD_MIX: 0.75,
+  // Cuánto cubre la pintura dorada (la que nace de lo conservado) a la demás. Más alto: el dorado domina enseguida;
+  // más bajo: solo se ven vetas finas. Es la señal visual de lo que la persona eligió conservar.
+  GOLD_COVER: 0.4,
 
   // Si se dibuja la intención: el trazo del mouse y, por delante, su alcance (hasta dónde llega el campo).
   // Sirve para ver qué parte pone la persona y qué parte pone el sistema. false lo oculta.
@@ -192,9 +216,9 @@ export const CONFIG = {
   // Grosor (px) del trazo de la intención.
   INTENTION_WEIGHT: 2,
 
-  // Instrucción mínima en la oscuridad inicial. Se desvanece cuando la persona empieza a moverse.
+  // Instrucción mínima en la oscuridad inicial. Se desvanece cuando la persona hace clic y empieza todo.
   // Explica el control, no el sentido de la obra.
-  HINT_TEXT: 'Mueve el mouse, sin presionar',
+  HINT_TEXT: 'Haz clic para comenzar',
 
   // --- Capa narrativa (frases cortas que explican qué representa cada cosa) ---
   // Cada frase aparece una sola vez, en orden, cuando su elemento aparece en pantalla, y se desvanece sola.
@@ -238,6 +262,21 @@ export const CONFIG = {
     deriva: '#1b3a5c', // azul profundo apagado
     conservado: '#c9a46a', // dorado tenue: la única señal del juicio
   },
+
+  // Paleta cálida: hacia ella se inclina la obra según lo que elija la persona (ver WARMTH en las preguntas).
+  // La paleta de arriba (COLORS) es el extremo frío; esta, el extremo cálido (referencia: pintura fluida azul, naranja y crema).
+  COLORS_WARM: {
+    fiel: '#f7e9c9',   // crema
+    desvio: '#e9892f', // naranja
+    deriva: '#7a2f2a', // rojo oscuro apagado
+    conservado: '#ffd27a', // dorado claro
+  },
+
+  // Cuánta calidez (0 = fría, 1 = cálida) tiene la paleta al empezar. Las decisiones la inclinan hacia un lado u otro.
+  WARMTH_START: 0.2,
+
+  // Cuánto tarda (segundos) la paleta en acomodarse tras una decisión. Más alto: el cambio de color es más lento y suave.
+  WARMTH_SMOOTH: 4,
 
   // Largo (px) del trazo con el que se dibuja cada agente, orientado según su rumbo.
   AGENT_STROKE_LEN: 14,
