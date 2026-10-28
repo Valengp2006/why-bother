@@ -1,5 +1,5 @@
-// log.js — registro de sesión: qué se conservó y qué se soltó, de qué origen y cuánto.
-// Es la evidencia de la hipótesis ("parte de lo que vale la pena conservar aparece en los desvíos").
+// log.js — registro de sesión: cada vertido de la persona, cada decisión de la narración y cómo quedó la obra.
+// Es la evidencia de la tesis ("si decisiones distintas producen obras distintas, el esfuerzo de decidir vale la pena").
 // Se descarga como JSON (tecla L) para pegarlo en la bitácora y comparar entre personas.
 import { CONFIG } from './config.js';
 
@@ -7,20 +7,15 @@ export function createLog() {
   return {
     seed: CONFIG.RANDOM_SEED,
     startedAt: new Date().toISOString(),
-    events: [], // un evento por juicio (conservar o soltar)
+    pours: [],   // cada vez que la persona vertió pintura: cuándo, dónde y cuánto duró
     choices: [], // una entrada por decisión en la narración (qué pregunta y qué opción eligió)
     final: null, // cómo quedó la obra al guardarla: la calidez y una miniatura para compararla con la de otras personas
-    counts: {
-      conserve: { fiel: 0, desvio: 0, deriva: 0, ninguno: 0 },
-      release: { fiel: 0, desvio: 0, deriva: 0, ninguno: 0 },
-    },
   };
 }
 
-// event = { t (ms), action ('conserve' | 'release'), x, y, dominant, mass, fiel, desvio, deriva }
-export function recordJudgment(log, event) {
-  log.events.push(event);
-  log.counts[event.action][event.dominant]++;
+// Un vertido: de (x0, y0) a (x1, y1), durante durationMs, a partir del instante t (ms).
+export function recordPour(log, pour) {
+  log.pours.push(pour);
 }
 
 // Una decisión de la narración: qué pregunta y qué opción eligió la persona.
@@ -37,8 +32,8 @@ export function recordFinal(log, nowMs, world, thumb) {
 
 // Lo que se descarga: el registro más los parámetros que definen la sesión.
 export function exportLog(log, nowMs) {
-  const keys = ['WINDOW_MS', 'MIN_SPEED', 'W_DIR', 'W_SPEED', 'LOOKAHEAD', 'WANDER_STRENGTH', 'MAX_DEVIATION_ANGLE',
-    'FIDELITY_HIGH', 'CRITERION_CLARITY', 'CRITERION_SPAWN_RATE', 'FLOCK_RADIUS', 'COHERENCE_NEIGHBORS', 'ALIGN_MIN', 'CONSERVE_RADIUS', 'DECAY', 'DIFFUSION'];
+  const keys = ['WINDOW_MS', 'MIN_SPEED', 'LOOKAHEAD', 'WANDER_STRENGTH', 'FIDELITY_HIGH', 'AMBIENT_STRENGTH', 'AMBIENT_SPAWN_RATE',
+    'POUR_RATE', 'CRITERION_LIFE', 'CRITERION_SPAWN_RATE', 'DECAY', 'GOLD_DECAY', 'DIFFUSION'];
   const params = {};
   for (const k of keys) params[k] = CONFIG[k];
   return { ...log, durationMs: Math.round(nowMs), params };

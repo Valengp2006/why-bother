@@ -2,7 +2,7 @@
 //   viento   : ruido filtrado que respira despacio; se aclara hacia lo cálido
 //   corriente: ruido agudo y suave cuyo volumen sigue a cuánta pintura se mueve
 //   gotas    : pings cortos de agua; más frecuentes con más movimiento, más agudos hacia lo cálido
-//   zumbido  : una voz grave y sostenida por cada criterio conservado (hasta MAX_VOICES); al soltar, se apaga despacio
+//   zumbido  : una voz grave y sostenida por cada vertido tuyo que sigue vivo (hasta MAX_VOICES); al apagarse, se desvanece despacio
 // Todo pasa por un reverb corto y un limitador. Antes del primer clic no suena nada (el navegador exige un gesto).
 import * as Tone from 'tone';
 import { CONFIG } from './config.js';
@@ -77,7 +77,7 @@ export const isAudioStarted = () => started;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // Cada cuadro: el sonido sigue el estado de la obra.
-//   state = { flow (0 a 1: cuánta pintura se mueve), warmth (0 frío a 1 cálido), criteria (cuántas zonas conservadas) }
+//   state = { flow (0 a 1: cuánta pintura se mueve), warmth (0 frío a 1 cálido), criteria (cuántos vertidos siguen vivos), pouring (¿vierte ahora?) }
 export function updateAudio(state, dt) {
   if (!g) return;
   const w = state.warmth;
@@ -91,10 +91,10 @@ export function updateAudio(state, dt) {
   g.sweep.min = windHz * 0.7; g.sweep.max = windHz * 1.4;
 
   // Corriente: sube con el movimiento de la pintura.
-  g.streamGain.gain.rampTo(0.02 + state.flow * 0.06, 0.4);
+  g.streamGain.gain.rampTo(0.02 + state.flow * 0.06 + (state.pouring ? 0.06 : 0), 0.25); // verter se oye: la corriente sube
 
   // Gotas: más con más movimiento; tono según la calidez, con variación suave.
-  g.dropCarry += CONFIG.DROP_RATE * (0.2 + state.flow) * (0.3 + 0.7 * bloom) * dt;
+  g.dropCarry += CONFIG.DROP_RATE * (0.2 + state.flow + (state.pouring ? 0.8 : 0)) * (0.3 + 0.7 * bloom) * dt;
   while (g.dropCarry >= 1) {
     g.dropCarry -= 1;
     const base = lerp(CONFIG.DROP_COOL_HZ, CONFIG.DROP_WARM_HZ, w);

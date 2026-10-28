@@ -1,28 +1,28 @@
-// criteria.js — los criterios: lo que la persona conservó, convertido en una intención persistente.
-// Un criterio recuerda dónde se conservó, de qué origen era (fiel, desvío o deriva) y hacia dónde fluía.
-// Mientras exista, emite agentes con esa dirección y proyecta su propio alcance en el campo.
+// criteria.js — lo que la persona vertió, convertido en una intención que sigue sin ella.
+// Al terminar de verter (soltar el clic) nace un criterio en ese punto, con la dirección en que iba la mano.
+// Mientras vive, emite pintura dorada con esa dirección y proyecta su propio alcance en el campo; se apaga solo.
 import { CONFIG } from './config.js';
 
 export function createCriteria() {
   return [];
 }
 
-// Convierte una medición (measure en trails.js) en un criterio, si la pintura tenía un flujo claro.
-// Devuelve el criterio creado, o null si no había origen o la dirección no era clara.
-export function addCriterion(criteria, x, y, m) {
-  if (m.dominant === 'ninguno') return null;
-  const len = Math.hypot(m.dirx, m.diry);
-  const coherence = m.dirAbs > 0 ? len / m.dirAbs : 0; // 1 = toda la pintura fluía en la misma dirección
-  if (coherence < CONFIG.CRITERION_MIN_COHERENCE) return null;
-  const c = { x, y, dir: { x: m.dirx / len, y: m.diry / len }, origin: m.dominant, coherence, carry: 0 };
+// Crea un criterio en (x, y) con la dirección dir (largo 1). nowMs: instante en que nace.
+export function addCriterion(criteria, x, y, dir, nowMs) {
+  const c = { x, y, dir: { x: dir.x, y: dir.y }, born: nowMs, carry: 0 };
   criteria.push(c);
   if (criteria.length > CONFIG.MAX_CRITERIA) criteria.shift(); // el más antiguo deja de emitir
   return c;
 }
 
-// Soltar una zona apaga los criterios que estaban dentro de su radio.
-export function removeCriteriaNear(criteria, x, y) {
+// Cuánto de su fuerza le queda a un criterio (1 recién nacido, 0 apagado).
+export function strengthOf(c, nowMs) {
+  return Math.max(0, 1 - (nowMs - c.born) / (CONFIG.CRITERION_LIFE * 1000));
+}
+
+// Quita los criterios que ya se apagaron.
+export function pruneCriteria(criteria, nowMs) {
   for (let i = criteria.length - 1; i >= 0; i--) {
-    if (Math.hypot(criteria[i].x - x, criteria[i].y - y) <= CONFIG.CONSERVE_RADIUS) criteria.splice(i, 1);
+    if (strengthOf(criteria[i], nowMs) <= 0) criteria.splice(i, 1);
   }
 }

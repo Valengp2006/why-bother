@@ -2,17 +2,16 @@
 import p5 from 'p5';
 import { CONFIG } from './config.js';
 import { MODE } from './mode.js'; // ajusta CONFIG según el modo (dev o performance)
-import { recordSample, computeClarity } from './intention.js';
+import { recordSample, computeClarity, recentDirection } from './intention.js';
 import { createField, updateField } from './field.js';
 import { createAgent, createInheritedAgent, stepAgent } from './agent.js';
-import { createCriteria } from './criteria.js';
+import { createCriteria, addCriterion, strengthOf, pruneCriteria } from './criteria.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails } from './trails.js';
-import { judge } from './judgment.js';
 import { world, updateWorld, applyEffect } from './world.js';
 import { wellPosition, ambientDir } from './ambient.js';
 import { startAudio, updateAudio, chime } from './audio.js';
-import { createLog, downloadLog, recordChoice, recordFinal } from './log.js';
+import { createLog, downloadLog, recordChoice, recordFinal, recordPour } from './log.js';
 import { createNarrative, updateNarrative, drawNarrative, narrativeClick, skipNarrative } from './narrative.js';
 import { drawAgents, drawTrails, drawIntention, drawHint, drawStartScreen, drawDebug, drawFieldDebug, thumbnail } from './render.js';
 
@@ -36,6 +35,8 @@ new p5((p) => {
   let hint2Alpha = 0;     // segunda invitación: 'Mueve el mouse', si pasa un rato sin que la persona se mueva
   let startedAt = 0;      // instante (ms) del primer clic
   let sawIntention = false; // true cuando la persona ya se movió con intención al menos una vez
+  let pouring = false;     // true mientras la persona mantiene el clic: está vertiendo pintura
+  let pour = null;         // el vertido en curso: dónde empezó, cuándo y la dirección en que va la mano
   let wantSave = false;   // pedir guardar la obra: se hace en el siguiente cuadro, con la pintura sola (sin textos)
   let started = false;    // true desde el primer clic: ahí empieza la pintura (y el audio, que el navegador exige iniciar con un gesto)
   let showDebug = CONFIG.DEBUG_AT_START;
@@ -47,7 +48,7 @@ new p5((p) => {
     p.noiseSeed(CONFIG.RANDOM_SEED);
     field = createField(p.width, p.height);
     trails = createTrails(p.width, p.height);
-    // El clic derecho es un gesto de la obra (soltar): se evita el menú del navegador.
+    // Se evita el menú del navegador con el clic derecho, para que no interrumpa el vertido.
     document.addEventListener('contextmenu', (e) => e.preventDefault());
   };
 
@@ -82,19 +83,45 @@ new p5((p) => {
     }
   }
 
-  // Cada criterio (zona conservada con flujo claro) emite agentes con su dirección y su origen,
-  // aunque el mouse esté lejos o quieto: lo conservado sigue su camino sin la mano.
+  // Cada criterio (lo que la persona vertió) emite pintura dorada con su dirección, aunque la mano esté lejos o quieta:
+  // lo tuyo sigue su camino sin ti, hasta que se apaga. Emite menos a medida que pierde fuerza.
   function spawnFromCriteria(dt) {
     for (const c of criteria) {
-      c.carry += CONFIG.CRITERION_SPAWN_RATE * world.criterionRateMul * dt;
+      c.carry += CONFIG.CRITERION_SPAWN_RATE * world.criterionRateMul * c.strength * dt;
       while (c.carry >= 1) {
         c.carry -= 1;
         if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
         const angle = p.random(p.TWO_PI);
         const dist = p.random(CONFIG.SPAWN_RADIUS);
-        agents.push(createInheritedAgent(p, c.x + Math.cos(angle) * dist, c.y + Math.sin(angle) * dist, c));
+        agents.push(createInheritedAgent(p, c.x + Math.cos(angle) * dist, c.y + Math.sin(angle) * dist, c.dir));
       }
     }
+  }
+
+  // Mientras la persona mantiene el clic, vierte pintura dorada en el cursor, en la dirección en que mueve la mano.
+  function spawnPour(dt, tSec) {
+    const d = recentDirection(samples);
+    if (d.x !== 0 || d.y !== 0) { pour.dir.x = d.x; pour.dir.y = d.y; }     // la dirección de la mano
+    else if (pour.dir.x === 0 && pour.dir.y === 0) ambientDir(p, p.mouseX, p.mouseY, tSec, pour.dir); // quieta: la del ambiente
+    pour.x1 = p.mouseX; pour.y1 = p.mouseY;
+    pour.carry += CONFIG.POUR_RATE * dt;
+    while (pour.carry >= 1) {
+      pour.carry -= 1;
+      if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
+      const angle = p.random(p.TWO_PI);
+      const dist = p.random(CONFIG.POUR_RADIUS);
+      agents.push(createInheritedAgent(p, p.mouseX + Math.cos(angle) * dist, p.mouseY + Math.sin(angle) * dist, pour.dir));
+    }
+  }
+
+  // Al soltar el clic termina el vertido: queda registrado y nace un criterio que sigue emitiendo sin la mano.
+  function endPour(nowMs) {
+    if (!pouring) return;
+    pouring = false;
+    const dur = nowMs - pour.start;
+    recordPour(session, { t: Math.round(pour.start), durationMs: Math.round(dur), x0: Math.round(pour.x0), y0: Math.round(pour.y0), x1: Math.round(pour.x1), y1: Math.round(pour.y1) });
+    if (dur >= CONFIG.POUR_MIN_MS && (pour.dir.x !== 0 || pour.dir.y !== 0)) addCriterion(criteria, pour.x1, pour.y1, pour.dir, nowMs);
+    pour = null;
   }
 
   p.draw = () => {
@@ -115,6 +142,9 @@ new p5((p) => {
     if (intention.active) sawIntention = true;
 
     updateWorld(dt);
+    pruneCriteria(criteria, now);
+    for (const c of criteria) c.strength = strengthOf(c, now);
+    if (pouring) spawnPour(dt, now / 1000);
     updateField(field, p.mouseX, p.mouseY, intention, criteria, dt);
     spawn(intention, dt);
     spawnAmbient(dt, now / 1000);
@@ -133,7 +163,7 @@ new p5((p) => {
     }
 
     updateTrails(trails, dt);
-    updateAudio({ flow: Math.min(1, agents.length / 600), warmth: world.warmth, criteria: criteria.length, bloom: world.bloom }, dt);
+    updateAudio({ flow: Math.min(1, agents.length / 600), warmth: world.warmth, criteria: criteria.length, bloom: world.bloom, pouring }, dt);
 
     // El título se desvanece despacio cuando la historia empieza.
     startFade = Math.max(0, 1 - (now - startedAt) / 3000);
@@ -144,7 +174,7 @@ new p5((p) => {
     for (const a of agents) counts[a.behavior]++;
     updateNarrative(narrative, { intentionActive: intention.active, counts }, now);
 
-    drawTrails(p, trails);
+    drawTrails(p, trails, now);
     if (wantSave) { saveArt(now); wantSave = false; } // justo después de pintar: solo la pintura, sin textos ni paneles
 
     // Si pasa un rato sin que la persona se mueva, una segunda invitación la guía.
@@ -175,7 +205,7 @@ new p5((p) => {
     recordFinal(session, nowMs, world, thumbnail(32, 18));
   }
 
-  // Clic: primero ¿eligió una opción de la narración? Si no, es un juicio: conservar (clic) o soltar (clic derecho, Shift+clic).
+  // Clic: primero ¿eligió una opción de la narración? Si no, empieza a verter pintura (mantener el clic).
   // El primer clic de la sesión solo inicia el audio y la obra, y no cuenta como decisión.
   p.mousePressed = (event) => {
     if (!started) {
@@ -198,8 +228,12 @@ new p5((p) => {
       recordChoice(session, now, choice);
       return;
     }
-    judge(trails, session, criteria, event, p.mouseX, p.mouseY, now);
+    // Cualquier otro clic empieza a verter: mantenerlo presionado vierte pintura dorada, y soltarlo termina el vertido.
+    pouring = true;
+    pour = { x0: p.mouseX, y0: p.mouseY, x1: p.mouseX, y1: p.mouseY, start: now, dir: { x: 0, y: 0 }, carry: 0 };
   };
+
+  p.mouseReleased = () => endPour(p.millis());
 
   p.keyPressed = () => {
     if (p.key === 'd' || p.key === 'D') showDebug = !showDebug;

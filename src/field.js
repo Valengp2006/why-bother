@@ -59,7 +59,7 @@ export function updateField(field, mouseX, mouseY, intention, criteria, dt) {
   if (intention.active) {
     stampIntention(field, mouseX, mouseY, intention.dir, intention.recentDir, intention.clarity);
   }
-  for (const c of criteria) stampIntention(field, c.x, c.y, c.dir, c.dir, CONFIG.CRITERION_CLARITY);
+  for (const c of criteria) stampIntention(field, c.x, c.y, c.dir, c.dir, CONFIG.CRITERION_CLARITY * c.strength); // se apaga con su fuerza
 }
 
 // Lee el campo en (x, y). Escribe en `out` para no crear objetos nuevos en cada agente y cada cuadro.

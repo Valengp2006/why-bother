@@ -10,15 +10,24 @@ const BG = hexToRgb(CONFIG.BACKGROUND);
 // el suavizado al agrandarla es lo que les da el aspecto de pintura que se corre.
 let trailImg = null;
 
-// La pintura se dibuja como pintura de verdad, no como luz:
+// La pintura se dibuja como un mar de pintura:
 //  · se MEZCLA como pigmento (promedio geométrico de los colores, ponderado por cuánto hay de cada uno):
 //    el azul con el dorado da verde, no un amarillo lavado;
 //  · CUBRE al fondo según su cantidad (opacidad), en vez de sumarse como un resplandor;
-//  · tiene GROSOR: su cantidad se trata como una altura y sus crestas atrapan luz (relieve y brillo húmedo).
-let heights = null, heightsTmp = null;
+//  · su superficie ONDULA: la cantidad de pintura y unas olas largas que viajan por toda la pantalla forman una altura;
+//    de su inclinación salen la luz, el brillo mojado, el reflejo del cielo y la refracción (el color se ve desplazado).
+let heights = null, heightsTmp = null, surf = null, mixc = null, cov = null;
 const LIGHT = (() => { const v = [-0.5, -0.6, 0.62], l = Math.hypot(...v); return v.map((x) => x / l); })();   // luz desde arriba a la izquierda
 const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const LN = (c) => Math.log(Math.max(8, c));
+
+// Las tres olas: dirección, largo de onda (relativo a WAVE_LENGTH), altura (relativa) y rapidez (relativa).
+const WAVES = [
+  { dx: 0.87, dy: 0.5, len: 1, amp: 1, speed: 1.3 },
+  { dx: -0.34, dy: 0.94, len: 0.8, amp: 0.7, speed: 0.8 },
+  { dx: 0.7, dy: 0.7, len: 0.55, amp: 0.45, speed: 1.9 },
+];
+let waveSin = null; // tablas de seno y coseno por columna y por fila, que se rehacen en cada cuadro
 
 // Suaviza un arreglo w×h con un promedio de 3 vecinos en cada eje (una pasada).
 function blur3(src, dst, w, h) {
@@ -36,12 +45,16 @@ function blur3(src, dst, w, h) {
   }
 }
 
-export function drawTrails(p, trails) {
+export function drawTrails(p, trails, nowMs = 0) {
   const { w, h } = trails;
   if (!trailImg || trailImg.width !== w || trailImg.height !== h) {
     trailImg = p.createImage(w, h);
     heights = new Float32Array(w * h);
     heightsTmp = new Float32Array(w * h);
+    surf = new Float32Array(w * h);
+    mixc = new Float32Array(w * h * 3);
+    cov = new Float32Array(w * h);
+    waveSin = WAVES.map(() => ({ sx: new Float32Array(w), cx: new Float32Array(w), sy: new Float32Array(h), cy: new Float32Array(h) }));
   }
   trailImg.loadPixels();
   const px = trailImg.pixels;
@@ -50,43 +63,80 @@ export function drawTrails(p, trails) {
   const lnCol = cols.map((c) => [LN(c[0]), LN(c[1]), LN(c[2])]); // se calcula una vez por cuadro, no por celda
   const op = CONFIG.PIGMENT_OPACITY;
   const [c0, c1, c2, c3] = trails.ch;
+  const COVER = CONFIG.PAINT_COVER * CONFIG.TRAIL_GAIN;
 
-  // El grosor es la cantidad total de pintura, suavizada para que el relieve sea de pintura continua.
-  for (let i = 0; i < heights.length; i++) heights[i] = c0[i] + c1[i] + c2[i] + c3[i];
+  // 1) Color de pigmento y cobertura de cada celda; y el grosor de la pintura (cantidad total).
+  for (let i = 0; i < heights.length; i++) {
+    const tot = c0[i] + c1[i] + c2[i] + c3[i];
+    heights[i] = tot;
+    const q0 = c0[i] * op[0], q1 = c1[i] * op[1], q2 = c2[i] * op[2], q3 = c3[i] * op[3];
+    const S = q0 + q1 + q2 + q3;
+    const m = i * 3;
+    if (S < 1e-4) { mixc[m] = BG[0]; mixc[m + 1] = BG[1]; mixc[m + 2] = BG[2]; cov[i] = 0; continue; }
+    const wk0 = q0 / S, wk1 = q1 / S, wk2 = q2 / S, wk3 = q3 / S;
+    mixc[m] = Math.exp(wk0 * lnCol[0][0] + wk1 * lnCol[1][0] + wk2 * lnCol[2][0] + wk3 * lnCol[3][0]);
+    mixc[m + 1] = Math.exp(wk0 * lnCol[0][1] + wk1 * lnCol[1][1] + wk2 * lnCol[2][1] + wk3 * lnCol[3][1]);
+    mixc[m + 2] = Math.exp(wk0 * lnCol[0][2] + wk1 * lnCol[1][2] + wk2 * lnCol[2][2] + wk3 * lnCol[3][2]);
+    cov[i] = 1 - Math.exp(-COVER * tot);
+  }
   for (let pass = 0; pass < CONFIG.PAINT_BLUR; pass++) blur3(heights, heightsTmp, w, h);
 
-  const K = CONFIG.PAINT_RELIEF, SPEC = CONFIG.PAINT_SPECULAR, COVER = CONFIG.PAINT_COVER * CONFIG.TRAIL_GAIN;
+  // 2) Olas: cada una es sin(k·(dx·x + dy·y) + ω·t). Como el argumento se separa en una parte de x y otra de y,
+  //    se usan tablas por columna y por fila (sin(A+B) = sinA·cosB + cosA·sinB) en vez de un seno por celda.
+  const t = nowMs / 1000 * CONFIG.WAVE_SPEED;
+  const swell = CONFIG.WAVE_SWELL;
+  WAVES.forEach((wv, j) => {
+    const k = (2 * Math.PI) / (CONFIG.WAVE_LENGTH * wv.len);
+    const T = waveSin[j];
+    for (let x = 0; x < w; x++) { const A = k * wv.dx * (x / trails.sx); T.sx[x] = Math.sin(A); T.cx[x] = Math.cos(A); }
+    for (let y = 0; y < h; y++) { const B = k * wv.dy * (y / trails.sy) + wv.speed * t; T.sy[y] = Math.sin(B); T.cy[y] = Math.cos(B); }
+  });
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sw = 0;
+      for (let j = 0; j < 3; j++) {
+        const T = waveSin[j];
+        sw += WAVES[j].amp * (T.sx[x] * T.cy[y] + T.cx[x] * T.sy[y]);
+      }
+      surf[y * w + x] = heights[y * w + x] + swell * sw;
+    }
+  }
+
+  // 3) Sombreado: normal de la superficie, luz difusa, brillo mojado, reflejo del cielo y refracción.
+  const K = CONFIG.PAINT_RELIEF, SPEC = CONFIG.PAINT_SPECULAR * 255, REFR = CONFIG.WAVE_REFRACTION, SKY = CONFIG.WAVE_SKY * 3;
+  const tint = pal.fiel;
+  const SAT = CONFIG.PAINT_SATURATION;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      const q0 = c0[i] * op[0], q1 = c1[i] * op[1], q2 = c2[i] * op[2], q3 = c3[i] * op[3];
-      const S = q0 + q1 + q2 + q3;
-      const o = i * 4;
-      if (S < 1e-4) { px[o] = BG[0]; px[o + 1] = BG[1]; px[o + 2] = BG[2]; px[o + 3] = 255; continue; }
-
-      // Mezcla de pigmentos (promedio geométrico ponderado).
-      const wk0 = q0 / S, wk1 = q1 / S, wk2 = q2 / S, wk3 = q3 / S;
-      const mr = Math.exp(wk0 * lnCol[0][0] + wk1 * lnCol[1][0] + wk2 * lnCol[2][0] + wk3 * lnCol[3][0]);
-      const mg = Math.exp(wk0 * lnCol[0][1] + wk1 * lnCol[1][1] + wk2 * lnCol[2][1] + wk3 * lnCol[3][1]);
-      const mb = Math.exp(wk0 * lnCol[0][2] + wk1 * lnCol[1][2] + wk2 * lnCol[2][2] + wk3 * lnCol[3][2]);
-
-      // Cuánto cubre al fondo.
-      const a = 1 - Math.exp(-COVER * (c0[i] + c1[i] + c2[i] + c3[i]));
-
-      // Relieve: normal a partir del gradiente del grosor; luz difusa y brillo especular.
       const xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i, ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
-      const gx = (heights[xp] - heights[xm]) * K, gy = (heights[yp] - heights[ym]) * K;
+      const gx = (surf[xp] - surf[xm]) * K, gy = (surf[yp] - surf[ym]) * K;
       const nl = Math.sqrt(gx * gx + gy * gy + 1);
       const nx = -gx / nl, ny = -gy / nl, nz = 1 / nl;
+
+      // Refracción: el color que se ve se toma de un punto desplazado según la inclinación de la ola.
+      let sx = Math.round(x + nx * REFR), sy = Math.round(y + ny * REFR);
+      sx = sx < 0 ? 0 : sx >= w ? w - 1 : sx; sy = sy < 0 ? 0 : sy >= h ? h - 1 : sy;
+      const j = sy * w + sx, jm = j * 3;
+      const a = cov[j];
+      let baseR = BG[0] * (1 - a) + mixc[jm] * a, baseG = BG[1] * (1 - a) + mixc[jm + 1] * a, baseB = BG[2] * (1 - a) + mixc[jm + 2] * a;
+      // Saturación: mezclar pigmentos apaga el color; esto lo aviva alejándolo del gris de su misma luminosidad.
+      const lum = 0.3 * baseR + 0.59 * baseG + 0.11 * baseB;
+      baseR = lum + (baseR - lum) * SAT; baseG = lum + (baseG - lum) * SAT; baseB = lum + (baseB - lum) * SAT;
+
       const diff = Math.max(0, nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]);
       const hd = Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]);
       const h2 = hd * hd, h4 = h2 * h2, h8 = h4 * h4, h16 = h8 * h8;
-      const spec = h16 * h8 * h4 * SPEC * 255; // hd^28
-      const shade = 0.55 + 0.6 * diff;
+      const spec = h16 * h4 * h2 * SPEC;          // hd^22: un brillo estrecho, de superficie mojada
+      const u = 1 - nz;
+      const sky = SKY * u * Math.sqrt(u);         // reflejo del cielo donde la ola se inclina
+      const shade = 0.62 + 0.5 * diff;
+      const gloss = 0.35 + 0.65 * a;              // la pintura refleja más que el fondo oscuro
 
-      px[o] = BG[0] * (1 - a) + (mr * shade + spec) * a;
-      px[o + 1] = BG[1] * (1 - a) + (mg * shade + spec) * a;
-      px[o + 2] = BG[2] * (1 - a) + (mb * shade + spec) * a;
+      const o = i * 4;
+      px[o] = baseR * shade + (spec + sky * tint[0]) * gloss;
+      px[o + 1] = baseG * shade + (spec + sky * tint[1]) * gloss;
+      px[o + 2] = baseB * shade + (spec + sky * tint[2]) * gloss;
       px[o + 3] = 255;
     }
   }
@@ -124,7 +174,7 @@ export function drawFieldDebug(p, field) {
   }
 }
 
-// Panel (tecla D): claridad, agentes por comportamiento, juicios por origen (f fiel, d desvío, v deriva, - sin traza) y campo.
+// Panel (tecla D): claridad, agentes por comportamiento, vertidos, criterios y campo.
 export function drawDebug(p, { samples, intention, agents, field, log, criteria, mode }) {
   drawFieldDebug(p, field);
 
@@ -145,8 +195,7 @@ export function drawDebug(p, { samples, intention, agents, field, log, criteria,
     `  fiel          ${counts.fiel}`,
     `  desvío        ${counts.desvio}`,
     `  deriva        ${counts.deriva}`,
-    `conservado      f ${log.counts.conserve.fiel} · d ${log.counts.conserve.desvio} · v ${log.counts.conserve.deriva} · - ${log.counts.conserve.ninguno}`,
-    `soltado         f ${log.counts.release.fiel} · d ${log.counts.release.desvio} · v ${log.counts.release.deriva} · - ${log.counts.release.ninguno}`,
+    `vertidos        ${log.pours.length}`,
     `criterios       ${criteria.length} / ${CONFIG.MAX_CRITERIA}`,
     `modo            ${mode}`,
     `fps             ${Math.round(p.frameRate())}`,
@@ -190,7 +239,7 @@ export function drawIntention(p, samples, intention, criteria) {
   const now = p.millis();
 
   for (const c of criteria) {
-    drawFan(p, c.x, c.y, c.dir, CONFIG.CRITERION_CLARITY * CONFIG.LOOKAHEAD, pal.conservado, CONFIG.INTENTION_ALPHA * 0.3);
+    drawFan(p, c.x, c.y, c.dir, CONFIG.CRITERION_CLARITY * c.strength * CONFIG.LOOKAHEAD, pal.conservado, CONFIG.INTENTION_ALPHA * 0.3);
   }
 
   if (samples.length < 2) return;
@@ -259,6 +308,6 @@ export function drawStartScreen(p, t, fade, mode) {
   if (mode === 'dev') {
     p.textSize(12);
     p.fill(r, g, b, 90 * fade);
-    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro', p.width / 2, p.height - 28);
+    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro  ·  mantén el clic: verter', p.width / 2, p.height - 28);
   }
 }

@@ -30,16 +30,17 @@ export function createAgent(p, x, y, dir) {
     fidelity: 0,
     behavior: 'deriva',
     nextClassify: 0,
-    inherited: false, // true si nació de un criterio conservado
+    inherited: false, // true si es pintura dorada (la que vierte la persona o nace de un criterio)
   };
 }
 
-// Un agente que nace de un criterio conservado hereda su origen (fiel, desvío o deriva) y no se reclasifica:
-// así la pintura sigue siendo de ese origen y el registro de lo conservado no se contamina.
-export function createInheritedAgent(p, x, y, criterion) {
-  const a = createAgent(p, x, y, criterion.dir);
+// Un agente de pintura dorada: nace de lo que la persona vierte o de un criterio que sigue sin ella.
+// Deposita en el canal dorado, actúa con la claridad del criterio (no depende de su mano) y no se reclasifica.
+// Se comporta como 'desvio' para que se agrupe y fluya en corrientes coherentes.
+export function createInheritedAgent(p, x, y, dir) {
+  const a = createAgent(p, x, y, dir);
   a.inherited = true;
-  a.behavior = criterion.origin;
+  a.behavior = 'desvio';
   return a;
 }
 

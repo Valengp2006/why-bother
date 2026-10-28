@@ -27,7 +27,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // Dirección (vector de largo 1) en la que se mueve el mouse justo ahora, mirando las últimas muestras.
 // Se usa para dejar el trazo en el campo; es más inmediata que la dirección promedio de la ventana.
 const RECENT_SAMPLES = 6;
-function recentDirection(samples) {
+export function recentDirection(samples) {
   if (samples.length < 2) return { x: 0, y: 0 };
   const a = samples[Math.max(0, samples.length - 1 - RECENT_SAMPLES)];
   const b = samples[samples.length - 1];

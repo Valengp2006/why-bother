@@ -150,34 +150,45 @@ export const CONFIG = {
   // Cada cuántos ms se reevalúa el comportamiento (fiel/desvío/deriva) de un agente.
   CLASSIFY_INTERVAL: 500,
 
-  // --- Juicio (clic para conservar o soltar) ---
-  // Masa mínima de traza dentro del radio para que un juicio cuente como hecho "sobre algo".
-  // Por debajo se registra igual, pero con origen 'ninguno'. Más alto: exige más pintura bajo el cursor.
-  JUDGMENT_MIN_MASS: 0.4,
+  // --- Verter (mantener el clic) y criterio (lo vertido sigue sin ti) ---
+  // Mantener el clic vierte pintura dorada: es TUYA, lo que pone la persona (el resto lo pone el sistema).
+  // Al soltar el clic nace un "criterio" en ese punto, con la dirección en que iba la mano: sigue emitiendo
+  // pintura dorada y proyectando su alcance, aunque el mouse esté en otro lado, y se apaga solo con el tiempo.
 
-  // --- Criterio (lo conservado se vuelve una intención persistente) ---
-  // Al conservar una zona se guarda de qué origen era y hacia dónde fluía su pintura. Desde ahí esa zona
-  // sigue emitiendo agentes con esa dirección y proyectando su propio alcance, aunque el mouse esté en otro lado.
-  // Soltar la zona la apaga. Es lo que hace que juzgar tenga consecuencias sobre lo que viene después.
-
-  // Claridad con la que nacen y actúan los agentes de un criterio (0 a 1). Es "qué tan clara quedó" la intención
-  // conservada. Más alto: la siguen con más fidelidad; más bajo: se desvían y derivan más.
+  // Claridad con la que actúan los agentes de pintura dorada (0 a 1). Es "qué tan clara quedó" lo que vertiste.
+  // Más alto: siguen mejor su dirección; más bajo: se desvían y divagan más.
   CRITERION_CLARITY: 0.85,
 
-  // Agentes por segundo que emite cada criterio. Más alto: lo conservado sigue más fuerte; 0 lo deja solo en el campo.
+  // Agentes por segundo que emite cada criterio al nacer. Más alto: lo que vertiste sigue más fuerte sin ti; 0 lo deja solo en el campo.
   CRITERION_SPAWN_RATE: 10,
 
-  // Máximo de criterios activos a la vez. Al pasarlo, el más antiguo deja de emitir (su zona sigue conservada).
-  MAX_CRITERIA: 10,
+  // Agentes por segundo que se vierten mientras se mantiene el clic. Más alto: el vertido es más denso y cubre más.
+  POUR_RATE: 150,
 
-  // Qué tan alineada debe estar la pintura de una zona (0 a 1; 1 = todo fluía igual) para que cuente como criterio.
-  // Más alto: solo zonas con un flujo claro. Una zona sin dirección clara se conserva, pero no emite.
-  CRITERION_MIN_COHERENCE: 0.3,
+  // Radio (px) alrededor del cursor dentro del cual nace la pintura que se vierte. Más alto: el vertido es más ancho.
+  POUR_RADIUS: 16,
+
+  // Vertido mínimo (ms) para que al soltar nazca un criterio. Evita que un clic suelto deje una fuente.
+  POUR_MIN_MS: 350,
+
+  // Cuánto dura (segundos) un criterio antes de apagarse. Más alto: lo vertido sigue emitiendo más tiempo sin ti.
+  CRITERION_LIFE: 45,
+
+  // Máximo de criterios activos a la vez. Al pasarlo, el más antiguo deja de emitir.
+  MAX_CRITERIA: 10,
 
   // --- Trazas (malla tipo Physarum, un canal por comportamiento) ---
   // Resolución de la malla respecto a la pantalla (0 a 1). 0.25 = una celda por cada 4×4 px.
   // Más alto: trazas más finas y más costo de CPU. Más bajo: manchas más gruesas y suaves.
   GRID_SCALE: 0.25,
+
+  // Ancho de la pincelada: cuántas celdas se reparte lo que deposita cada agente a cada lado. 0 = una sola celda (línea angosta);
+  // 2 = pinceladas anchas y suaves. Más alto: líneas más gordas y menos nítidas.
+  DEPOSIT_RADIUS: 2,
+
+  // Cuánto de la pintura dorada (la que vierte la persona) queda después de 1 segundo. Más alto que DECAY:
+  // lo tuyo dura más que lo que hace el sistema. Más cerca de 1: casi no se borra.
+  GOLD_DECAY: 0.93,
 
   // Cuánta traza deposita cada agente por segundo en su celda. Más alto: el color se acumula más rápido y satura.
   DEPOSIT: 22,
@@ -189,30 +200,21 @@ export const CONFIG = {
   // Cuánto de la traza normal queda después de 1 segundo (0 a 1). Más alto: las trazas duran más.
   DECAY: 0.85,
 
-  // Cuánto de la traza conservada queda después de 1 segundo. Cerca de 1: casi no se borra.
-  CONSERVE_DECAY: 0.95,
-
-  // Cuánto de la traza soltada queda después de 1 segundo. Más bajo: se desvanece más rápido.
-  RELEASE_DECAY: 0.02,
-
-  // Radio (px) alrededor del cursor al que afecta conservar (clic) o soltar (clic derecho / Shift+clic).
-  CONSERVE_RADIUS: 70,
-
   // Tope de la traza en una celda. Más alto: permite acumulaciones más intensas antes de saturar.
   TRAIL_MAX: 3,
 
-  // Sensores tipo Physarum: cada agente mira la traza conservada en tres puntos (izquierda, frente, derecha).
+  // Sensores tipo Physarum: cada agente mira la pintura dorada en tres puntos (izquierda, frente, derecha).
   // Ángulo (radianes) entre el sensor del frente y los laterales. Más alto: mira más abierto.
   SENSE_ANGLE: 0.6,
 
-  // A qué distancia (px) del agente están los sensores. Más alto: siente lo conservado desde más lejos.
+  // A qué distancia (px) del agente están los sensores. Más alto: siente tu pintura desde más lejos.
   SENSE_DISTANCE: 30,
 
-  // Fuerza (px/s²) con la que un agente es atraído hacia la traza conservada. 0 la desactiva.
-  // Más alto: lo conservado atrae y recoge más agentes (el "punto de partida" pesa más).
+  // Fuerza (px/s²) con la que un agente es atraído hacia la pintura dorada. 0 la desactiva.
+  // Más alto: lo tuyo atrae y recoge más agentes del sistema.
   SENSE_WEIGHT: 350,
 
-  // Intensidad mínima de traza conservada para que un sensor la note.
+  // Intensidad mínima de pintura dorada para que un sensor la note.
   SENSE_MIN: 0.05,
 
   // --- Sonido (agua y viento con Tone.js; sin escala musical) ---
@@ -245,18 +247,38 @@ export const CONFIG = {
   PAINT_COVER: 1.2,
 
   // Opacidad de cada pigmento al mezclarse: [fiel, desvío, deriva, dorado]. Más alto: ese pigmento domina la mezcla.
-  // La deriva es translúcida (se pierde) y el dorado cubre (es lo que la persona conservó).
-  PIGMENT_OPACITY: [1, 1, 0.6, 2],
+  // La deriva es translúcida (se pierde) y el dorado cubre (es lo que la persona vierte).
+  PIGMENT_OPACITY: [1, 1, 0.4, 2],
+
+  // Saturación de la pintura. Mezclar pigmentos la apaga; esto la aviva. 1 = sin cambio; más alto: colores más intensos;
+  // menos de 1: más apagados y grisáceos.
+  PAINT_SATURATION: 1.6,
+
+  // Olas: la superficie ondula con ondas largas que viajan por toda la pintura (como un mar de pintura).
+  // Altura de las olas. Más alto: olas más marcadas; 0 deja la superficie quieta.
+  WAVE_SWELL: 0.55,
+
+  // Largo de onda (px) de las olas. Más alto: ondas más anchas y lentas de ver.
+  WAVE_LENGTH: 420,
+
+  // Rapidez de las olas. Más alto: viajan más rápido; 0 las detiene.
+  WAVE_SPEED: 1,
+
+  // Refracción: cuánto se desplaza el color visto según la inclinación de la ola (en celdas). Da el aspecto de líquido.
+  WAVE_REFRACTION: 7,
+
+  // Reflejo del cielo sobre las olas: tiñe de blanco frío donde la ola mira hacia arriba. 0 lo quita.
+  WAVE_SKY: 0.12,
 
   // Relieve: el grosor de la pintura se trata como una altura y las crestas atrapan luz. Más alto: más marcado,
   // como pintura espesa (impasto); 0 la deja plana.
-  PAINT_RELIEF: 5,
+  PAINT_RELIEF: 3,
 
   // Brillo especular (el reflejo húmedo de la pintura). Más alto: más brillante y mojada; 0 la deja mate.
-  PAINT_SPECULAR: 0.35,
+  PAINT_SPECULAR: 0.45,
 
   // Cuántas pasadas de suavizado tiene el relieve. Más alto: crestas más lisas y anchas; 0 deja granos sueltos.
-  PAINT_BLUR: 2,
+  PAINT_BLUR: 4,
 
   // Si se dibuja la intención: el trazo del mouse y, por delante, su alcance (hasta dónde llega el campo).
   // Sirve para ver qué parte pone la persona y qué parte pone el sistema. false lo oculta.
@@ -286,9 +308,6 @@ export const CONFIG = {
   // Cuánto dura cada frase explicativa en pantalla (ms), contando su aparición y su desvanecimiento.
   NARRATIVE_MS: 8000,
 
-  // Cuánto se espera (ms) después de la frase de los comportamientos antes de la del juicio.
-  NARRATIVE_JUDGMENT_DELAY: 5000,
-
   // Los textos. 'color' toma el de la paleta (fiel, desvio, deriva, conservado); sin 'color', el texto es neutro.
   NARRATIVE_TEXT: {
     // Prólogo: la historia empieza sola, mientras la pintura florece desde la oscuridad. Son tu punto de vista:
@@ -307,8 +326,8 @@ export const CONFIG = {
     ],
     juicio: [
       { text: 'Tú decides qué se queda.' },
-      { text: 'Clic: conservar, en dorado. Lo conservado sigue su camino sin ti.', color: 'conservado' },
-      { text: 'Clic derecho: soltar.' },
+      { text: 'Mantén el clic: viertes tu propia pintura, en dorado.', color: 'conservado' },
+      { text: 'Lo que viertes sigue su camino sin ti.' },
     ],
   },
 
@@ -326,9 +345,9 @@ export const CONFIG = {
   //   ambientMul      fuerza del ambiente (>1: ríos más firmes; <1: más vagabundos)
   //   wanderMul       cuánto divagan los agentes
   //   ambientSpawnMul cuánta pintura emiten solas las fuentes (>1: más; <1: menos)
-  //   senseMul        cuánto atrae lo conservado a los agentes
-  //   criterionRateMul cuánto emite cada zona conservada
-  //   decayMul        qué tan rápido se borra lo que no se conserva
+  //   senseMul        cuánto atrae tu pintura dorada a los agentes que pasan cerca
+  //   criterionRateMul cuánto emite cada vertido tuyo mientras sigue sin ti
+  //   decayMul        qué tan rápido se borra lo que hace el sistema (la tuya, dorada, dura más)
   //   showMechanism   true muestra el campo y los agentes; false los oculta
   QUESTIONS: [
     {
@@ -343,8 +362,8 @@ export const CONFIG = {
       id: 'inesperado',
       text: '¿Qué haces con lo inesperado?',
       options: [
-        { label: 'Conservarlo', effect: { senseMul: 2.2, criterionRateMul: 1.8, warmth: 0.25 } },
-        { label: 'Soltarlo', effect: { decayMul: 1.6, senseMul: 0.5, warmth: -0.2 } },
+        { label: 'Seguirlo', effect: { senseMul: 2.2, criterionRateMul: 1.8, warmth: 0.25 } },
+        { label: 'Dejarlo pasar', effect: { decayMul: 1.6, senseMul: 0.5, warmth: -0.2 } },
       ],
     },
     {
