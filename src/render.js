@@ -2,6 +2,7 @@
 import { CONFIG } from './config.js';
 
 import { getPalette, hexToRgb } from './palette.js';
+import { world } from './world.js';
 export { hexToRgb };
 
 const BG = hexToRgb(CONFIG.BACKGROUND);
@@ -27,6 +28,12 @@ const WAVES = [
   { dx: -0.34, dy: 0.94, len: 0.8, amp: 0.7, speed: 0.8 },
   { dx: 0.7, dy: 0.7, len: 0.55, amp: 0.45, speed: 1.9 },
 ];
+// Ondas que lanzan las decisiones: un anillo que se expande desde la opción elegida y se apaga.
+const ripples = [];
+export function addRipple(x, y, nowMs) {
+  ripples.push({ x, y, t0: nowMs });
+}
+const RIPPLE_MS = 3200;
 let waveSin = null; // tablas de seno y coseno por columna y por fila, que se rehacen en cada cuadro
 
 // Suaviza un arreglo w×h con un promedio de 3 vecinos en cada eje (una pasada).
@@ -84,7 +91,7 @@ export function drawTrails(p, trails, nowMs = 0) {
   // 2) Olas: cada una es sin(k·(dx·x + dy·y) + ω·t). Como el argumento se separa en una parte de x y otra de y,
   //    se usan tablas por columna y por fila (sin(A+B) = sinA·cosB + cosA·sinB) en vez de un seno por celda.
   const t = nowMs / 1000 * CONFIG.WAVE_SPEED;
-  const swell = CONFIG.WAVE_SWELL;
+  const swell = CONFIG.WAVE_SWELL * world.waveMul * (1 - 0.7 * world.closing); // las decisiones calman o agitan el mar; al cerrar se aquieta
   WAVES.forEach((wv, j) => {
     const k = (2 * Math.PI) / (CONFIG.WAVE_LENGTH * wv.len);
     const T = waveSin[j];
@@ -102,8 +109,27 @@ export function drawTrails(p, trails, nowMs = 0) {
     }
   }
 
+  // Ondas de las decisiones: cada una es un anillo que se abre desde donde se eligió, con altura que decae.
+  for (let r = ripples.length - 1; r >= 0; r--) {
+    const age = nowMs - ripples[r].t0;
+    if (age > RIPPLE_MS) { ripples.splice(r, 1); continue; }
+    const a = age / 1000;
+    const cx = ripples[r].x * trails.sx, cy = ripples[r].y * trails.sy;
+    const radius = 70 * a * trails.sx * 3.2, sigma = 5 + a * 3, amp = 2.4 * Math.exp(-1.1 * a);
+    const reach = radius + sigma * 3;
+    const x0 = Math.max(0, Math.floor(cx - reach)), x1 = Math.min(w - 1, Math.ceil(cx + reach));
+    const y0 = Math.max(0, Math.floor(cy - reach)), y1 = Math.min(h - 1, Math.ceil(cy + reach));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const e = Math.hypot(x - cx, y - cy) - radius;
+        if (e > sigma * 3 || e < -sigma * 3) continue;
+        surf[y * w + x] += amp * Math.cos(e * 0.9) * Math.exp(-(e * e) / (2 * sigma * sigma));
+      }
+    }
+  }
+
   // 3) Sombreado: normal de la superficie, luz difusa, brillo mojado, reflejo del cielo y refracción.
-  const K = CONFIG.PAINT_RELIEF, SPEC = CONFIG.PAINT_SPECULAR * 255, REFR = CONFIG.WAVE_REFRACTION, SKY = CONFIG.WAVE_SKY * 3;
+  const K = CONFIG.PAINT_RELIEF, SPEC = CONFIG.PAINT_SPECULAR * world.glossMul * 255, REFR = CONFIG.WAVE_REFRACTION, SKY = CONFIG.WAVE_SKY * 3;
   const tint = pal.fiel;
   const SAT = CONFIG.PAINT_SATURATION;
   for (let y = 0; y < h; y++) {
@@ -331,6 +357,23 @@ export function drawStartScreen(p, t, fade, mode) {
     p.textSize(12);
     p.textAlign(p.CENTER, p.CENTER);
     p.fill(r, g, b, 90 * fade);
-    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro  ·  C puntero  ·  F pantalla completa  ·  mantén el clic: verter', p.width / 2, p.height - 28);
+    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  E cierra  ·  D panel  ·  S guardar  ·  L registro  ·  C puntero  ·  F pantalla completa  ·  mantén el clic: verter', p.width / 2, p.height - 28);
+  }
+}
+
+// El epílogo y el reposo. closeT va de 0 a 1 durante el cierre; tSec es el tiempo para el pulso de la invitación.
+// Las frases del epílogo aparecen una a una; al terminar el cierre aparecen el título y la invitación a empezar de nuevo.
+export function drawEpilogue(p, closeT, tSec) {
+  const pal = getPalette();
+  const ramp = (v) => Math.max(0, Math.min(1, v));
+  CONFIG.EPILOGUE.forEach((l, i) => {
+    const a = ramp((closeT - (0.1 + 0.3 * i)) / 0.2);
+    serifText(p, l.text, p.width / 2, p.height * 0.44 + i * 54, 42, pal.fiel, 235 * a);
+  });
+  const titleA = ramp((closeT - 0.85) / 0.15);
+  serifText(p, CONFIG.TITLE, p.width / 2, p.height * 0.25, Math.max(44, Math.min(100, p.width / 12)), pal.fiel, 220 * titleA);
+  if (closeT >= 1) {
+    const pulse = 0.65 + 0.35 * Math.sin(tSec * 1.6);
+    serifText(p, CONFIG.RESTART_TEXT, p.width / 2, p.height * 0.74, 28, pal.fiel, 170 * pulse);
   }
 }

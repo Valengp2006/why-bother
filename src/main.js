@@ -9,12 +9,12 @@ import { createAgent, createInheritedAgent, stepAgent } from './agent.js';
 import { createCriteria, addCriterion, strengthOf, pruneCriteria } from './criteria.js';
 import { createGrid, buildGrid } from './flock.js';
 import { createTrails, deposit, updateTrails, resampleTrails } from './trails.js';
-import { world, updateWorld, applyEffect } from './world.js';
+import { world, updateWorld, applyEffect, resetWorld } from './world.js';
 import { wellPosition, ambientDir } from './ambient.js';
-import { startAudio, updateAudio, chime } from './audio.js';
+import { startAudio, updateAudio, chime, finalNote, silenceAudio } from './audio.js';
 import { createLog, downloadLog, recordChoice, recordFinal, recordPour } from './log.js';
 import { createNarrative, updateNarrative, drawNarrative, narrativeClick, skipNarrative } from './narrative.js';
-import { drawAgents, drawTrails, drawIntention, drawHint, drawStartScreen, drawDebug, drawFieldDebug, thumbnail } from './render.js';
+import { drawAgents, drawTrails, drawIntention, drawHint, drawStartScreen, drawDebug, drawFieldDebug, drawEpilogue, addRipple, thumbnail } from './render.js';
 
 // Solo en modo dev: permite probar valores desde la consola del navegador, por ejemplo  __CONFIG.TRAIL_GAIN = 2  ,
 // sin recargar. En modo performance no existe.
@@ -23,15 +23,19 @@ if (MODE === 'dev') { window.__CONFIG = CONFIG; window.__world = world; }
 new p5((p) => {
   const samples = []; // trayectoria reciente del mouse
   const agents = [];
-  const criteria = createCriteria(); // lo conservado que sigue emitiendo
+  const criteria = createCriteria(); // lo que la persona vertió y sigue emitiendo
   const grid = createGrid(); // malla espacial para buscar vecinos
   let field;
   let trails;
   const wellCarry = new Array(CONFIG.AMBIENT_WELLS).fill(0); // fracción de agente que sobra, por fuente
   const tmp = { x: 0, y: 0 }, tmpDir = { x: 0, y: 0 };
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
-  const narrative = createNarrative();
-  const session = createLog(); // el registro de la sesión (decisiones y juicios)
+  let narrative = createNarrative();
+  let session = createLog(); // el registro de la sesión (decisiones y vertidos)
+  let phase = 'story';    // 'story' (la historia) → 'closing' (el cierre) → 'rest' (el reposo, hasta volver a empezar)
+  let closeStart = 0;     // instante (ms) en que empieza el cierre
+  let lastActivity = 0;   // última vez que la persona movió el mouse o hizo clic (para cerrar la obra por inactividad)
+  const lastMouse = { x: 0, y: 0 };
   let startFade = 1;      // 1 = se ve la pantalla de inicio; baja a 0 en 3 s cuando la historia empieza
   let hint2Alpha = 0;     // segunda invitación: 'Mueve el mouse', si pasa un rato sin que la persona se mueva
   let startedAt = 0;      // instante (ms) del primer clic
@@ -84,7 +88,7 @@ new p5((p) => {
   // Hace nacer agentes cerca del mouse, en proporción a su rapidez, mientras la intención está activa.
   function spawn(intention, dt) {
     if (!intention.active) return;
-    spawnCarry += CONFIG.SPAWN_RATE * intention.meanSpeed * dt;
+    spawnCarry += CONFIG.SPAWN_RATE * intention.meanSpeed * (1 - world.closing) * dt;
     while (spawnCarry >= 1) {
       spawnCarry -= 1;
       if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
@@ -98,7 +102,7 @@ new p5((p) => {
   function spawnAmbient(dt, tSec) {
     if (CONFIG.AMBIENT_SPAWN_RATE <= 0) return;
     for (let i = 0; i < CONFIG.AMBIENT_WELLS; i++) {
-      wellCarry[i] += CONFIG.AMBIENT_SPAWN_RATE * world.ambientSpawnMul * Math.pow(world.bloom, 1.6) * dt; // al principio casi nada: la pintura florece
+      wellCarry[i] += CONFIG.AMBIENT_SPAWN_RATE * world.ambientSpawnMul * Math.pow(world.bloom, 1.6) * (1 - world.closing) * dt; // al principio casi nada: la pintura florece
       if (wellCarry[i] < 1) continue;
       wellPosition(p, i, tSec, p.width, p.height, tmp);
       ambientDir(p, tmp.x, tmp.y, tSec, tmpDir);
@@ -116,7 +120,7 @@ new p5((p) => {
   // lo tuyo sigue su camino sin ti, hasta que se apaga. Emite menos a medida que pierde fuerza.
   function spawnFromCriteria(dt) {
     for (const c of criteria) {
-      c.carry += CONFIG.CRITERION_SPAWN_RATE * world.criterionRateMul * c.strength * dt;
+      c.carry += CONFIG.CRITERION_SPAWN_RATE * world.criterionRateMul * c.strength * (1 - world.closing) * dt;
       while (c.carry >= 1) {
         c.carry -= 1;
         if (agents.length >= CONFIG.PARTICLE_COUNT) continue;
@@ -153,6 +157,43 @@ new p5((p) => {
     pour = null;
   }
 
+  // Empieza el cierre: el sistema deja de poner pintura, el mar se aquieta y lo que hizo el sistema se disuelve;
+  // lo dorado dura más. at (ms) permite retrasarlo unos instantes para que primero se guarde la imagen.
+  function startClosing(at) {
+    if (phase !== 'story' || !started) return;
+    endPour(at);
+    phase = 'closing';
+    closeStart = at;
+    finalNote();
+  }
+
+  // Vuelve a empezar desde el reposo: todo en blanco y la pantalla de inicio otra vez (la sesión anterior queda atrás;
+  // si hacía falta su registro, se descarga antes con la tecla L).
+  function resetSession() {
+    agents.length = 0;
+    criteria.length = 0;
+    samples.length = 0;
+    wellCarry.fill(0);
+    trails = createTrails(p.width, p.height);
+    field = createField(p.width, p.height);
+    resetWorld();
+    narrative = createNarrative();
+    session = createLog();
+    phase = 'story';
+    closeStart = 0;
+    started = false;
+    startFade = 1;
+    sawIntention = false;
+    hint2Alpha = 0;
+    pouring = false;
+    pour = null;
+    wantSave = false;
+    silenceAudio();
+    refreshChrome();
+  }
+
+  if (MODE === 'dev') window.__state = () => ({ started, phase, closing: world.closing, narrativeIndex: narrative.index, agents: agents.length });
+
   p.draw = () => {
     const dt = Math.min(p.deltaTime / 1000, 0.05); // segundos; se acota para que una pausa no dispare la simulación
     const now = p.millis();
@@ -163,6 +204,17 @@ new p5((p) => {
       drawStartScreen(p, now / 1000, 1, MODE);
       return;
     }
+
+    // Actividad de la persona: si pasa mucho tiempo sin mover el mouse ni hacer clic, la obra se cierra sola
+    // (solo después de la pregunta final, para no cortar la historia mientras se lee).
+    if (Math.hypot(p.mouseX - lastMouse.x, p.mouseY - lastMouse.y) > 2) { lastActivity = now; lastMouse.x = p.mouseX; lastMouse.y = p.mouseY; }
+    if (phase === 'story' && narrative.done && now - lastActivity > CONFIG.IDLE_TIMEOUT_MS) startClosing(now);
+
+    // El cierre avanza con el reloj (no con los cuadros): 0 al empezar, 1 al terminar; en el reposo se queda en 1.
+    if (phase === 'closing') {
+      world.closing = Math.max(0, Math.min(1, (now - closeStart) / (CONFIG.DISSOLVE_SECONDS * 1000)));
+      if (world.closing >= 1) phase = 'rest';
+    } else if (phase === 'rest') world.closing = 1;
 
     // Se muestrea cada cuadro (aunque el mouse esté quieto: quedarse quieto también cuenta).
     recordSample(samples, p.mouseX, p.mouseY, now);
@@ -192,7 +244,7 @@ new p5((p) => {
     }
 
     updateTrails(trails, dt);
-    updateAudio({ flow: Math.min(1, agents.length / 600), warmth: world.warmth, criteria: criteria.length, bloom: world.bloom, pouring }, dt);
+    updateAudio({ flow: Math.min(1, agents.length / 600), warmth: world.warmth, criteria: criteria.length, bloom: world.bloom * (1 - world.closing), pouring: pouring && phase === 'story' }, dt);
 
     // El título se desvanece despacio cuando la historia empieza.
     startFade = Math.max(0, 1 - (now - startedAt) / 3000);
@@ -201,7 +253,7 @@ new p5((p) => {
     // Cuántos agentes hay de cada comportamiento: la capa narrativa lo usa para saber qué ya está en pantalla.
     const counts = { fiel: 0, desvio: 0, deriva: 0 };
     for (const a of agents) counts[a.behavior]++;
-    updateNarrative(narrative, { intentionActive: intention.active, counts, pourCount: session.pours.length + (pouring ? 1 : 0) }, now);
+    if (phase === 'story') updateNarrative(narrative, { intentionActive: intention.active, counts, pourCount: session.pours.length + (pouring ? 1 : 0) }, now);
 
     drawTrails(p, trails, now);
     if (wantSave) { saveArt(now); wantSave = false; } // justo después de pintar: solo la pintura, sin textos ni paneles
@@ -216,8 +268,10 @@ new p5((p) => {
       drawAgents(p, agents);
     }
     drawStartScreen(p, now / 1000, startFade, MODE);
-    drawHint(p, hint2Alpha, CONFIG.HINT2_TEXT);
-    drawNarrative(p, narrative, now, { x: p.mouseX, y: p.mouseY });
+    if (phase === 'story') {
+      drawHint(p, hint2Alpha, CONFIG.HINT2_TEXT);
+      drawNarrative(p, narrative, now, { x: p.mouseX, y: p.mouseY });
+    } else drawEpilogue(p, world.closing, now / 1000);
     if (showDebug) drawDebug(p, { samples, intention, agents, field, log: session, criteria, mode: MODE });
   };
 
@@ -247,12 +301,17 @@ new p5((p) => {
       return;
     }
     const now = p.millis();
+    lastActivity = now;
+    if (phase === 'closing') return;                 // durante el cierre no se toca nada: la obra termina sola
+    if (phase === 'rest') { resetSession(); return; } // en el reposo, un clic empieza de nuevo
     const choice = narrativeClick(narrative, p.mouseX, p.mouseY, now);
     if (choice) {
+      const r = narrative.rects[choice.optionIndex];
       if (choice.step.type === 'final') {
-        if (choice.optionIndex === 0) wantSave = true; // 'Guardarla'
+        if (choice.optionIndex === 0) { wantSave = true; startClosing(now + 500); } // 'Guardarla': primero se guarda, luego se cierra
       } else if (choice.option.effect) {
         applyEffect(choice.option.effect);            // la decisión cambia el mundo
+        if (r) addRipple(r.x, r.y, now);              // y se ve: una onda se abre desde la opción elegida
       }
       chime(world.warmthTarget);
       recordChoice(session, now, choice);
@@ -271,6 +330,7 @@ new p5((p) => {
     if (p.key === 'c' || p.key === 'C') { CONFIG.HIDE_CURSOR = !CONFIG.HIDE_CURSOR; refreshChrome(); } // muestra u oculta el puntero al probar
     if (p.key === 'f' || p.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); }
     if (p.key === 's' || p.key === 'S') wantSave = true;               // guarda la obra como imagen
+    if ((p.key === 'e' || p.key === 'E') && started) startClosing(p.millis()); // cierra la obra (acelera el final)
     if ((p.key === 'n' || p.key === 'N') && MODE === 'dev') skipNarrative(narrative, p.millis()); // solo dev: salta la narración
   };
 

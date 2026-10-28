@@ -63,6 +63,7 @@ function rotate(x, y, angle) {
 
 // Un paso de simulación. Devuelve false si el agente murió (vida agotada o fuera de pantalla).
 export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
+  const maxSpeed = CONFIG.MAX_SPEED * world.speedMul; // una decisión puede hacer que todo fluya más lento o más rápido
   agent.age += dt;
   if (agent.age >= CONFIG.AGENT_LIFETIME) return false;
 
@@ -86,8 +87,8 @@ export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
   const free = 1 - Math.min(1, fieldSample.strength); // 1 = fuera del trazo, 0 = dentro
   if (free > 0 && CONFIG.AMBIENT_STRENGTH * world.ambientMul > 0) {
     ambientDir(p, agent.x, agent.y, nowMs / 1000, ambient);
-    let sx = ambient.x * CONFIG.MAX_SPEED * 0.7 - agent.vx;
-    let sy = ambient.y * CONFIG.MAX_SPEED * 0.7 - agent.vy;
+    let sx = ambient.x * maxSpeed * 0.7 - agent.vx;
+    let sy = ambient.y * maxSpeed * 0.7 - agent.vy;
     const sl = Math.hypot(sx, sy);
     const cap = CONFIG.AMBIENT_STRENGTH * world.ambientMul * free;
     if (sl > cap) { sx *= cap / sl; sy *= cap / sl; }
@@ -97,9 +98,9 @@ export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
 
   // Si hay campo aquí: dirección deseada = la del campo, rotada por el desvío × (1 − fidelidad).
   if (fieldSample.strength >= CONFIG.FIELD_MIN_STRENGTH) {
-    const d = rotate(fieldSample.dx, fieldSample.dy, agent.deviation * (1 - agent.fidelity));
-    let sx = d.x * CONFIG.MAX_SPEED - agent.vx; // steering = velocidad deseada − velocidad actual
-    let sy = d.y * CONFIG.MAX_SPEED - agent.vy;
+    const d = rotate(fieldSample.dx, fieldSample.dy, agent.deviation * world.deviationMul * (1 - agent.fidelity));
+    let sx = d.x * maxSpeed - agent.vx; // steering = velocidad deseada − velocidad actual
+    let sy = d.y * maxSpeed - agent.vy;
     const sl = Math.hypot(sx, sy);
     if (sl > CONFIG.MAX_FORCE) { sx *= CONFIG.MAX_FORCE / sl; sy *= CONFIG.MAX_FORCE / sl; }
     ax += sx;
@@ -121,7 +122,7 @@ export function stepAgent(p, agent, field, grid, trails, clarity, dt, nowMs) {
   agent.vx += ax * dt;
   agent.vy += ay * dt;
   const speed = Math.hypot(agent.vx, agent.vy);
-  if (speed > CONFIG.MAX_SPEED) { agent.vx *= CONFIG.MAX_SPEED / speed; agent.vy *= CONFIG.MAX_SPEED / speed; }
+  if (speed > maxSpeed) { agent.vx *= maxSpeed / speed; agent.vy *= maxSpeed / speed; }
   agent.x += agent.vx * dt;
   agent.y += agent.vy * dt;
 

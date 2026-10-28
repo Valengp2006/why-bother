@@ -2,6 +2,7 @@
 // Al terminar de verter (soltar el clic) nace un criterio en ese punto, con la dirección en que iba la mano.
 // Mientras vive, emite pintura dorada con esa dirección y proyecta su propio alcance en el campo; se apaga solo.
 import { CONFIG } from './config.js';
+import { world } from './world.js';
 
 export function createCriteria() {
   return [];
@@ -17,7 +18,7 @@ export function addCriterion(criteria, x, y, dir, nowMs) {
 
 // Cuánto de su fuerza le queda a un criterio (1 recién nacido, 0 apagado).
 export function strengthOf(c, nowMs) {
-  return Math.max(0, 1 - (nowMs - c.born) / (CONFIG.CRITERION_LIFE * 1000));
+  return Math.max(0, 1 - (nowMs - c.born) / (CONFIG.CRITERION_LIFE * world.criterionLifeMul * 1000));
 }
 
 // Quita los criterios que ya se apagaron.

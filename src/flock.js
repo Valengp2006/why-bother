@@ -1,5 +1,6 @@
 // flock.js — vecindad entre agentes y flocking de los desvíos (alineación y cohesión).
 import { CONFIG } from './config.js';
+import { world } from './world.js';
 
 // Una malla espacial: guarda los agentes por celda para mirar solo a los vecinos cercanos
 // en vez de comparar cada agente con todos los demás.
@@ -72,14 +73,15 @@ export function flockForce(agent, info, out) {
   out.ax = 0; out.ay = 0;
   if (info.desvioN === 0) return out;
 
+  const maxSpeed = CONFIG.MAX_SPEED * world.speedMul;
   const vl = Math.hypot(info.avgVx, info.avgVy) || 1;
-  const alignX = (info.avgVx / vl) * CONFIG.MAX_SPEED - agent.vx;
-  const alignY = (info.avgVy / vl) * CONFIG.MAX_SPEED - agent.vy;
+  const alignX = (info.avgVx / vl) * maxSpeed - agent.vx;
+  const alignY = (info.avgVy / vl) * maxSpeed - agent.vy;
 
   const toX = info.cx - agent.x, toY = info.cy - agent.y;
   const tl = Math.hypot(toX, toY) || 1;
-  const cohX = (toX / tl) * CONFIG.MAX_SPEED - agent.vx;
-  const cohY = (toY / tl) * CONFIG.MAX_SPEED - agent.vy;
+  const cohX = (toX / tl) * maxSpeed - agent.vx;
+  const cohY = (toY / tl) * maxSpeed - agent.vy;
 
   let ax = alignX * CONFIG.ALIGN_WEIGHT + cohX * CONFIG.COHESION_WEIGHT;
   let ay = alignY * CONFIG.ALIGN_WEIGHT + cohY * CONFIG.COHESION_WEIGHT;

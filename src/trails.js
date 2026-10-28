@@ -59,7 +59,7 @@ export function deposit(trails, agent, dt) {
   if (cx < 0 || cy < 0 || cx >= trails.w || cy >= trails.h) return;
   const life = 1 - agent.age / CONFIG.AGENT_LIFETIME;
   const c = trails.ch[agent.inherited ? CHANNEL.conservado : CHANNEL[agent.behavior]];
-  const amount = CONFIG.DEPOSIT * life * dt;
+  const amount = CONFIG.DEPOSIT * world.densityMul * life * dt; // una decisión puede hacer la capa más fina o más espesa
   for (const o of trails.kernel) {
     const x = cx + o.dx, y = cy + o.dy;
     if (x < 0 || y < 0 || x >= trails.w || y >= trails.h) continue;
@@ -72,8 +72,9 @@ export function deposit(trails, agent, dt) {
 // La pintura dorada decae más despacio: lo que la persona vierte dura más que lo que hace el sistema.
 export function updateTrails(trails, dt) {
   const { w, h } = trails;
-  const kNormal = Math.pow(CONFIG.DECAY, dt * world.decayMul);
-  const kGold = Math.pow(CONFIG.GOLD_DECAY, dt);
+  // Al cerrar, lo del sistema se disuelve cada vez más rápido y lo dorado casi deja de decaer: lo tuyo es lo que queda.
+  const kNormal = Math.pow(CONFIG.DECAY, dt * world.decayMul * (1 + 3 * world.closing));
+  const kGold = Math.pow(CONFIG.GOLD_DECAY + (CONFIG.GOLD_DECAY_REST - CONFIG.GOLD_DECAY) * world.closing, dt);
 
   // La difusión se ajusta al tiempo del cuadro, para que se vea igual a 30 o a 120 fps.
   const D = 1 - Math.pow(1 - CONFIG.DIFFUSION, dt * 60);

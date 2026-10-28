@@ -53,10 +53,17 @@ function build() {
     droneVoices.push({ o1, o2, vg });
   }
 
+  // La nota final del cierre: grave, que entra despacio y se extingue en un release largo.
+  const finalSynth = new Tone.Synth({
+    oscillator: { type: 'sine' },
+    envelope: { attack: 1.8, decay: 0.5, sustain: 0.6, release: 9 },
+    volume: -12,
+  }).connect(reverb);
+
   wind.start(); breath.start(); sweep.start(); stream.start();
   droneVoices.forEach((v) => { v.o1.start(); v.o2.start(); });
 
-  return { windFilter, windGain, sweep, streamGain, drops, droneGain, droneVoices, dropCarry: 0, dropIndex: 0 };
+  return { windFilter, windGain, sweep, streamGain, drops, droneGain, droneVoices, finalSynth, dropCarry: 0, dropIndex: 0 };
 }
 
 // El navegador solo deja sonar tras un gesto de la persona: por eso el primer clic de la sesión
@@ -121,4 +128,18 @@ export function chime(warmth) {
   const synth = g.drops[g.dropIndex++ % g.drops.length];
   const t = Tone.now();
   synth.triggerAttackRelease(f, 0.25, t, 0.8);
+}
+
+// La nota final: al empezar el cierre suena una nota grave que se extingue despacio con todo lo demás.
+export function finalNote() {
+  if (!g) return;
+  g.finalSynth.triggerAttackRelease(CONFIG.DRONE_HZ * 2, 5, Tone.now());
+}
+
+// Silencio total (en el reposo y al volver a empezar): baja el volumen y apaga el zumbido.
+export function silenceAudio() {
+  if (!g) return;
+  Tone.Destination.volume.rampTo(-60, 1.5);
+  g.droneVoices.forEach((v) => v.vg.gain.rampTo(0, 1));
+  g.streamGain.gain.rampTo(0, 1);
 }

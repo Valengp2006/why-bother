@@ -238,6 +238,28 @@ export const CONFIG = {
   // Máximo de voces del zumbido a la vez. Más alto: lo conservado puede sonar más lleno.
   MAX_VOICES: 4,
 
+  // --- Cierre (la obra termina: el sistema se calma y lo tuyo es lo que más dura) ---
+  // Milisegundos sin mover el mouse ni hacer clic, después de la pregunta final, para que la obra se cierre sola.
+  // Más alto: espera más. También se cierra al elegir 'Guardarla' o con la tecla E.
+  IDLE_TIMEOUT_MS: 45000,
+
+  // Segundos que dura el cierre: el sistema deja de poner pintura, el mar se aquieta y lo que hizo el sistema se disuelve.
+  // Más alto: el final es más lento y contemplativo.
+  DISSOLVE_SECONDS: 18,
+
+  // Cuánto de la pintura dorada queda tras 1 segundo durante el cierre y el reposo (más cerca de 1: dura más).
+  // Es lo que queda en pantalla cuando todo lo demás se disolvió: lo tuyo.
+  GOLD_DECAY_REST: 0.992,
+
+  // El epílogo: frases que aparecen una a una durante el cierre. Son tuyas.
+  EPILOGUE: [
+    { text: 'El agua corrió sola.' },
+    { text: 'Por dónde, lo decidiste tú.' },
+  ],
+
+  // Invitación en el reposo, tras el cierre. Al hacer clic la obra empieza de nuevo.
+  RESTART_TEXT: 'Haz clic para volver a empezar',
+
   // --- Tipografía y puntero ---
   // La letra de la obra: Cormorant Garamond (cursiva), incluida en el proyecto. Si no cargara, usa una serif del sistema.
   FONT: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
@@ -367,43 +389,58 @@ export const CONFIG = {
   //   senseMul        cuánto atrae tu pintura dorada a los agentes que pasan cerca
   //   criterionRateMul cuánto emite cada vertido tuyo mientras sigue sin ti
   //   decayMul        qué tan rápido se borra lo que hace el sistema (la tuya, dorada, dura más)
+  //   criterionLifeMul cuánto dura cada vertido tuyo antes de apagarse
+  //   waveMul         altura de las olas (<1 mar en calma, >1 mar bravo)
+  //   speedMul        rapidez de lo que fluye
+  //   densityMul      cuánta pintura deja cada agente (<1 capa fina, >1 espesa)
+  //   deviationMul    cuánto se desvían los agentes de lo que sigue la mano (>1 más desvíos)
+  //   glossMul        brillo mojado de la superficie
   //   showMechanism   true muestra el campo y los agentes; false los oculta
   QUESTIONS: [
     {
       id: 'guiar',
       text: '¿Guías el río o lo dejas ir?',
       options: [
-        { label: 'Guiarlo', effect: { clarityMul: 1.5, ambientMul: 0.6, warmth: -0.2 } },
-        { label: 'Dejarlo ir', effect: { ambientMul: 1.4, wanderMul: 1.5, warmth: 0.2 } },
+        // Calma y control: la pintura sigue tu mano, el mar se aquieta, poca agua propia, colores fríos.
+        { label: 'Guiarlo', effect: { clarityMul: 2, ambientMul: 0.45, ambientSpawnMul: 0.5, wanderMul: 0.5, waveMul: 0.45, speedMul: 0.8, glossMul: 1.3, warmth: -0.35 } },
+        // Abundancia y tormenta: ríos propios, olas altas, todo más rápido y cálido.
+        { label: 'Dejarlo ir', effect: { ambientMul: 1.6, ambientSpawnMul: 2, wanderMul: 1.7, waveMul: 1.9, speedMul: 1.35, warmth: 0.35 } },
       ],
     },
     {
       id: 'inesperado',
       text: '¿Qué haces con lo inesperado?',
       options: [
-        { label: 'Seguirlo', effect: { senseMul: 2.2, criterionRateMul: 1.8, warmth: 0.25 } },
-        { label: 'Dejarlo pasar', effect: { decayMul: 1.6, senseMul: 0.5, warmth: -0.2 } },
+        // Más desvíos, capa más espesa, lo tuyo atrae y emite mucho más.
+        { label: 'Seguirlo', effect: { deviationMul: 2.2, senseMul: 3, criterionRateMul: 2.5, densityMul: 1.35, warmth: 0.2 } },
+        // Casi sin desvíos, capa fina, la pintura se borra rápido: queda limpio.
+        { label: 'Dejarlo pasar', effect: { deviationMul: 0.3, decayMul: 2, densityMul: 0.7, senseMul: 0.4, warmth: -0.2 } },
       ],
     },
     {
       id: 'solo',
       text: '¿Le pides que siga sin ti?',
       options: [
-        { label: 'Sí', effect: { ambientSpawnMul: 1.8, warmth: 0.15 } },
-        { label: 'No', effect: { ambientSpawnMul: 0.45, warmth: -0.15 } },
+        // El sistema llena la pantalla y lo que viertes dura mucho.
+        { label: 'Sí', effect: { ambientSpawnMul: 2, criterionLifeMul: 2.5, warmth: 0.15 } },
+        // Casi no pone nada solo: la pantalla se vacía si tú no la llenas.
+        { label: 'No', effect: { ambientSpawnMul: 0.25, criterionLifeMul: 0.4, warmth: -0.15 } },
       ],
     },
     {
       id: 'entender',
       text: '¿Quieres ver cómo funciona?',
       options: [
+        // Se ve el campo y los agentes: el mecanismo a la vista.
         { label: 'Mostrarme', effect: { showMechanism: true } },
-        { label: 'Prefiero no verlo', effect: { showMechanism: false } },
+        // Solo la pintura, más brillante y con más oleaje.
+        { label: 'Prefiero no verlo', effect: { showMechanism: false, glossMul: 1.4, waveMul: 1.15 } },
       ],
     },
   ],
 
-  // Pregunta final: al elegir 'Guardarla' se descarga la obra como imagen. Textos editables.
+  // Pregunta final: 'Guardarla' descarga la obra como imagen y la cierra; 'Seguir creando' la deja abierta
+  // (se cierra sola tras IDLE_TIMEOUT_MS sin actividad, o con la tecla E). Textos editables.
   FINAL_QUESTION: {
     text: 'Esto es lo que decidiste.',
     options: [
