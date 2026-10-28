@@ -183,6 +183,8 @@ export function drawDebug(p, { samples, intention, agents, field, log, criteria,
 
   p.noStroke();
   p.fill(255);
+  p.textFont('monospace');
+  p.textStyle(p.NORMAL);
   p.textSize(13);
   p.textAlign(p.LEFT, p.TOP);
   const lines = [
@@ -256,15 +258,39 @@ export function drawIntention(p, samples, intention, criteria) {
   drawFan(p, last.x, last.y, intention.dir, intention.clarity * CONFIG.LOOKAHEAD, pal.fiel, CONFIG.INTENTION_ALPHA * 0.35);
 }
 
-// Instrucción mínima del inicio, centrada y tenue. alpha va de 0 a 1.
+// La letra de la obra (serif cursiva, Cormorant Garamond). El texto se dibuja directamente con el canvas y no con
+// p.text, porque p5 no interpreta bien una lista de fuentes con respaldo. Cormorant es de ojo pequeño: se usa más
+// grande que una sans. alpha va de 0 a 255; align: 'center' | 'left' | 'right'.
+function applyFont(ctx, size, italic) {
+  ctx.font = `${italic ? 'italic ' : ''}${size}px ${CONFIG.FONT}`;
+}
+
+export function serifText(p, str, x, y, size, rgb, alpha, { italic = true, align = 'center' } = {}) {
+  if (alpha <= 0) return;
+  const ctx = p.drawingContext;
+  ctx.save();
+  applyFont(ctx, size, italic);
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(${rgb[0] | 0}, ${rgb[1] | 0}, ${rgb[2] | 0}, ${Math.min(1, alpha / 255)})`;
+  ctx.fillText(str, x, y);
+  ctx.restore();
+}
+
+// Ancho (px) que ocupa un texto con la letra de la obra: para dimensionar, por ejemplo, el fondo de una opción.
+export function serifWidth(p, str, size, italic = true) {
+  const ctx = p.drawingContext;
+  ctx.save();
+  applyFont(ctx, size, italic);
+  const w = ctx.measureText(str).width;
+  ctx.restore();
+  return w;
+}
+
+// Instrucción mínima, centrada y tenue. alpha va de 0 a 1.
 export function drawHint(p, alpha, text = CONFIG.HINT_TEXT) {
   if (alpha < 0.01) return;
-  const [r, g, b] = getPalette().fiel;
-  p.noStroke();
-  p.fill(r, g, b, 150 * alpha);
-  p.textSize(18);
-  p.textAlign(p.CENTER, p.CENTER);
-  p.text(text, p.width / 2, p.height / 2);
+  serifText(p, text, p.width / 2, p.height / 2, 28, getPalette().fiel, 150 * alpha);
 }
 
 // Miniatura de la última pintura dibujada (cols × rows, promedio por bloque): sirve para comparar,
@@ -293,21 +319,18 @@ export function drawStartScreen(p, t, fade, mode) {
   const [r, g, b] = pal.fiel;
   const titleA = Math.min(1, t / 3) * fade;                    // el título aparece despacio
   const inviteA = Math.max(0, Math.min(1, (t - 3.5) / 2)) * fade * (0.65 + 0.35 * Math.sin(t * 1.6)); // y la invitación respira
-  p.noStroke();
-  p.textAlign(p.CENTER, p.CENTER);
-  p.textSize(Math.max(28, Math.min(72, p.width / 16)));
-  p.fill(r, g, b, 235 * titleA);
-  p.text(CONFIG.TITLE, p.width / 2, p.height * 0.42);
+  serifText(p, CONFIG.TITLE, p.width / 2, p.height * 0.42, Math.max(44, Math.min(110, p.width / 11)), pal.fiel, 235 * titleA);
   p.stroke(r, g, b, 90 * titleA);
   p.strokeWeight(1);
   p.line(p.width / 2 - 60, p.height * 0.5, p.width / 2 + 60, p.height * 0.5);
   p.noStroke();
-  p.textSize(18);
-  p.fill(r, g, b, 170 * inviteA);
-  p.text(CONFIG.HINT_TEXT, p.width / 2, p.height * 0.57);
+  serifText(p, CONFIG.HINT_TEXT, p.width / 2, p.height * 0.57, 30, pal.fiel, 170 * inviteA);
   if (mode === 'dev') {
+    p.textFont('monospace');
+    p.textStyle(p.NORMAL);
     p.textSize(12);
+    p.textAlign(p.CENTER, p.CENTER);
     p.fill(r, g, b, 90 * fade);
-    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro  ·  mantén el clic: verter', p.width / 2, p.height - 28);
+    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro  ·  C puntero  ·  F pantalla completa  ·  mantén el clic: verter', p.width / 2, p.height - 28);
   }
 }

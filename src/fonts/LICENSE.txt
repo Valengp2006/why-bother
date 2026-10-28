@@ -1,0 +1,3 @@
+Cormorant Garamond — Copyright 2015 The Cormorant Project Authors (github.com/CatharsisFonts/Cormorant)
+Licencia: SIL Open Font License, Version 1.1 — https://openfontlicense.org
+Se permite usar, copiar, modificar y redistribuir la fuente, incluso dentro de un proyecto, siempre que se conserve este aviso.

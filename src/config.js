@@ -166,7 +166,7 @@ export const CONFIG = {
   POUR_RATE: 150,
 
   // Radio (px) alrededor del cursor dentro del cual nace la pintura que se vierte. Más alto: el vertido es más ancho.
-  POUR_RADIUS: 16,
+  POUR_RADIUS: 22,
 
   // Vertido mínimo (ms) para que al soltar nazca un criterio. Evita que un clic suelto deje una fuente.
   POUR_MIN_MS: 350,
@@ -184,14 +184,14 @@ export const CONFIG = {
 
   // Ancho de la pincelada: cuántas celdas se reparte lo que deposita cada agente a cada lado. 0 = una sola celda (línea angosta);
   // 2 = pinceladas anchas y suaves. Más alto: líneas más gordas y menos nítidas.
-  DEPOSIT_RADIUS: 2,
+  DEPOSIT_RADIUS: 3,
 
   // Cuánto de la pintura dorada (la que vierte la persona) queda después de 1 segundo. Más alto que DECAY:
   // lo tuyo dura más que lo que hace el sistema. Más cerca de 1: casi no se borra.
   GOLD_DECAY: 0.93,
 
   // Cuánta traza deposita cada agente por segundo en su celda. Más alto: el color se acumula más rápido y satura.
-  DEPOSIT: 22,
+  DEPOSIT: 28,
 
   // Cuánto se mezcla cada celda con sus vecinas por cuadro (0 a 1). Más alto: las trazas se esparcen
   // más y se ven más como pintura que se corre; 0 deja puntos nítidos.
@@ -237,6 +237,15 @@ export const CONFIG = {
 
   // Máximo de voces del zumbido a la vez. Más alto: lo conservado puede sonar más lleno.
   MAX_VOICES: 4,
+
+  // --- Tipografía y puntero ---
+  // La letra de la obra: Cormorant Garamond (cursiva), incluida en el proyecto. Si no cargara, usa una serif del sistema.
+  FONT: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+
+  // Si se oculta el puntero convencional del mouse (la mano se ve por el trazo de la intención y las opciones se
+  // resaltan al acercarse). En modo performance solo se oculta en pantalla completa, para poder usar el botón de volver.
+  // La tecla C lo muestra u oculta al probar.
+  HIDE_CURSOR: true,
 
   // --- Dibujo ---
   // Brillo de las trazas al dibujarlas. Más alto: colores más saturados y luminosos; más bajo: más oscuro y tenue.

@@ -1,5 +1,6 @@
 // main.js — arranque y ciclo de p5.
 import p5 from 'p5';
+import './style.css';
 import { CONFIG } from './config.js';
 import { MODE } from './mode.js'; // ajusta CONFIG según el modo (dev o performance)
 import { recordSample, computeClarity, recentDirection } from './intention.js';
@@ -7,7 +8,7 @@ import { createField, updateField } from './field.js';
 import { createAgent, createInheritedAgent, stepAgent } from './agent.js';
 import { createCriteria, addCriterion, strengthOf, pruneCriteria } from './criteria.js';
 import { createGrid, buildGrid } from './flock.js';
-import { createTrails, deposit, updateTrails } from './trails.js';
+import { createTrails, deposit, updateTrails, resampleTrails } from './trails.js';
 import { world, updateWorld, applyEffect } from './world.js';
 import { wellPosition, ambientDir } from './ambient.js';
 import { startAudio, updateAudio, chime } from './audio.js';
@@ -38,16 +39,44 @@ new p5((p) => {
   let pouring = false;     // true mientras la persona mantiene el clic: está vertiendo pintura
   let pour = null;         // el vertido en curso: dónde empezó, cuándo y la dirección en que va la mano
   let wantSave = false;   // pedir guardar la obra: se hace en el siguiente cuadro, con la pintura sola (sin textos)
+  let fsButton = null;    // el botón de volver a pantalla completa
   let started = false;    // true desde el primer clic: ahí empieza la pintura (y el audio, que el navegador exige iniciar con un gesto)
   let showDebug = CONFIG.DEBUG_AT_START;
 
+  // El puntero y el botón de pantalla completa dependen del estado de la ventana.
+  //  · puntero: oculto si HIDE_CURSOR (en performance, solo en pantalla completa, para poder usar el botón)
+  //  · botón: visible solo después de empezar y mientras no se esté en pantalla completa
+  function refreshChrome() {
+    const fs = !!document.fullscreenElement;
+    const hide = CONFIG.HIDE_CURSOR && (MODE === 'dev' || fs);
+    if (p.canvas) p.canvas.style.cursor = hide ? 'none' : 'default';
+    if (fsButton) fsButton.style.display = started && !fs ? 'block' : 'none';
+  }
+
   p.setup = () => {
     p.createCanvas(p.windowWidth, p.windowHeight);
+    // El canvas no pide las fuentes por sí solo (solo lo hace el texto de la página): se cargan aquí, antes de usarlas.
+    document.fonts.load("italic 400 32px 'Cormorant Garamond'");
+    document.fonts.load("italic 500 18px 'Cormorant Garamond'");
+    document.fonts.load("normal 400 32px 'Cormorant Garamond'");
     // Determinismo: las semillas se fijan una sola vez, aquí. Toda la aleatoriedad sale de p.random y p.noise.
     p.randomSeed(CONFIG.RANDOM_SEED);
     p.noiseSeed(CONFIG.RANDOM_SEED);
     field = createField(p.width, p.height);
     trails = createTrails(p.width, p.height);
+    // El botón para volver a pantalla completa si se sale por accidente (aparece solo cuando hace falta).
+    fsButton = document.createElement('button');
+    fsButton.id = 'fs-button';
+    fsButton.textContent = 'Pantalla completa';
+    document.body.appendChild(fsButton);
+    // Los eventos del botón no deben llegar a la obra: pulsarlo no puede contar como verter ni como elegir.
+    for (const ev of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) fsButton.addEventListener(ev, (e) => e.stopPropagation());
+    fsButton.addEventListener('click', () => { document.documentElement.requestFullscreen?.(); });
+    document.addEventListener('fullscreenchange', refreshChrome);
+    // Si la persona suelta el clic fuera de la obra (sobre el botón o fuera de la ventana), el vertido igual termina.
+    document.addEventListener('mouseup', () => endPour(p.millis()), true);
+    refreshChrome();
+
     // Se evita el menú del navegador con el clic derecho, para que no interrumpa el vertido.
     document.addEventListener('contextmenu', (e) => e.preventDefault());
   };
@@ -214,6 +243,7 @@ new p5((p) => {
       narrative.lastEnd = startedAt;                       // el prólogo cuenta desde aquí
       if (CONFIG.FULLSCREEN && !p.fullscreen()) p.fullscreen(true); // en modo performance, pantalla completa
       startAudio();
+      refreshChrome();
       return;
     }
     const now = p.millis();
@@ -238,14 +268,22 @@ new p5((p) => {
   p.keyPressed = () => {
     if (p.key === 'd' || p.key === 'D') showDebug = !showDebug;
     if (p.key === 'l' || p.key === 'L') downloadLog(session, p.millis()); // descarga el registro de la sesión en JSON
+    if (p.key === 'c' || p.key === 'C') { CONFIG.HIDE_CURSOR = !CONFIG.HIDE_CURSOR; refreshChrome(); } // muestra u oculta el puntero al probar
+    if (p.key === 'f' || p.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.(); }
     if (p.key === 's' || p.key === 'S') wantSave = true;               // guarda la obra como imagen
     if ((p.key === 'n' || p.key === 'N') && MODE === 'dev') skipNarrative(narrative, p.millis()); // solo dev: salta la narración
   };
 
-  // Si cambia el tamaño de la ventana, el canvas y el campo la siguen.
+  // Si cambia el tamaño de la ventana (por ejemplo, al entrar o salir de pantalla completa), la obra se adapta
+  // y conserva lo pintado: los agentes y las fuentes se reubican y la pintura se reescala.
   p.windowResized = () => {
+    const ow = p.width, oh = p.height;
     p.resizeCanvas(p.windowWidth, p.windowHeight);
+    const rx = p.width / ow, ry = p.height / oh;
+    for (const a of agents) { a.x *= rx; a.y *= ry; }
+    for (const c of criteria) { c.x *= rx; c.y *= ry; }
     field = createField(p.width, p.height);
-    trails = createTrails(p.width, p.height); // al redimensionar, las trazas se reinician
+    trails = resampleTrails(trails, p.width, p.height);
+    refreshChrome();
   };
 });

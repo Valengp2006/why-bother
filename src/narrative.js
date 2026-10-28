@@ -6,6 +6,7 @@
 // que flotan dentro de la pintura.
 import { CONFIG } from './config.js';
 import { getPalette } from './palette.js';
+import { serifText, serifWidth } from './render.js';
 
 const FADE_IN = 1000;
 const FADE_OUT = 1500;
@@ -75,22 +76,19 @@ export function drawNarrative(p, n, nowMs, mouse) {
   const t = nowMs - n.start;
   const pal = getPalette();
   p.noStroke();
-  p.textAlign(p.CENTER, p.CENTER);
 
   if (cur.type === 'text') {
     const dur = durationOf(cur);
     const alpha = Math.max(0, Math.min(1, t / FADE_IN, (dur - t) / FADE_OUT));
     const lines = CONFIG.NARRATIVE_TEXT[cur.id];
     const center = cur.style === 'center'; // el prólogo va grande y al centro; las frases explicativas, abajo
-    const lineH = center ? 38 : 28;
-    p.textSize(center ? 28 : 18);
+    const lineH = center ? 46 : 34;
     lines.forEach((l, i) => {
       // 'deriva' es un azul casi del color del fondo; para leerse como texto se aclara hacia el blanco.
-      let [r, g, b] = l.color ? pal[l.color] : pal.fiel;
-      if (l.color === 'deriva') { r += (pal.fiel[0] - r) * 0.5; g += (pal.fiel[1] - g) * 0.5; b += (pal.fiel[2] - b) * 0.5; }
-      p.fill(r, g, b, 210 * alpha);
+      let rgb = l.color ? pal[l.color] : pal.fiel;
+      if (l.color === 'deriva') rgb = rgb.map((v, k) => v + (pal.fiel[k] - v) * 0.5);
       const y = center ? p.height * 0.46 + i * lineH : p.height - 70 - (lines.length - 1 - i) * lineH;
-      p.text(l.text, p.width / 2, y);
+      serifText(p, l.text, p.width / 2, y, center ? 38 : 26, rgb, 210 * alpha);
     });
     return;
   }
@@ -98,14 +96,11 @@ export function drawNarrative(p, n, nowMs, mouse) {
   // Pregunta: el texto abajo y las dos opciones flotando dentro de la pintura.
   const alpha = Math.min(1, t / (FADE_IN * 1.5));
   const q = cur.question;
-  p.textSize(24);
-  p.fill(pal.fiel[0], pal.fiel[1], pal.fiel[2], 235 * alpha);
-  p.text(q.text, p.width / 2, p.height - 90);
+  serifText(p, q.text, p.width / 2, p.height - 90, 34, pal.fiel, 235 * alpha);
 
   const pos = optionPositions(p, nowMs);
-  p.textSize(22);
   q.options.forEach((opt, i) => {
-    const w = p.textWidth(opt.label) + 56, h = 50;
+    const w = serifWidth(p, opt.label, 30) + 64, h = 58;
     const { x, y } = pos[i];
     const hover = Math.abs(mouse.x - x) <= w / 2 + 14 && Math.abs(mouse.y - y) <= h / 2 + 14;
     n.rects[i] = { x, y, w, h };
@@ -113,10 +108,9 @@ export function drawNarrative(p, n, nowMs, mouse) {
     p.fill(5, 11, 20, (hover ? 215 : 160) * alpha);
     p.stroke(pal.fiel[0], pal.fiel[1], pal.fiel[2], (hover ? 255 : 130) * alpha);
     p.strokeWeight(hover ? 2 : 1);
-    p.rect(x - w / 2, y - h / 2, w, h, 25);
+    p.rect(x - w / 2, y - h / 2, w, h, 29);
     p.noStroke();
-    p.fill(pal.fiel[0], pal.fiel[1], pal.fiel[2], (hover ? 255 : 215) * alpha);
-    p.text(opt.label, x, y);
+    serifText(p, opt.label, x, y, 30, pal.fiel, (hover ? 255 : 215) * alpha);
   });
 }
 

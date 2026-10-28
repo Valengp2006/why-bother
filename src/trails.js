@@ -37,6 +37,20 @@ export function createTrails(width, height) {
   };
 }
 
+// Una malla nueva del tamaño de la pantalla actual con la pintura de la anterior (reducida o ampliada).
+// Se usa al cambiar de tamaño la ventana (por ejemplo, al entrar o salir de pantalla completa) para no perder la obra.
+export function resampleTrails(old, width, height) {
+  const t = createTrails(width, height);
+  for (let y = 0; y < t.h; y++) {
+    const oy = Math.min(old.h - 1, Math.floor((y * old.h) / t.h));
+    for (let x = 0; x < t.w; x++) {
+      const ox = Math.min(old.w - 1, Math.floor((x * old.w) / t.w));
+      for (let k = 0; k < 4; k++) t.ch[k][y * t.w + x] = old.ch[k][oy * old.w + ox];
+    }
+  }
+  return t;
+}
+
 // Cada agente deja pintura alrededor de la celda donde está, en el canal de su comportamiento actual
 // (o en el dorado si nació de lo que la persona vertió). Se desvanece con su edad, así los que van muriendo dejan menos.
 export function deposit(trails, agent, dt) {
