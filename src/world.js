@@ -15,6 +15,7 @@ export const world = {
   criterionRateMul: 1,  // cuánto emite cada zona conservada
   decayMul: 1,          // qué tan rápido se borra la pintura no conservada
   showMechanism: false, // si se ve el mecanismo (el campo y los agentes) además de la pintura
+  bloom: 0,             // 0 a 1: cuánto ha florecido la obra desde el primer clic (pintura y sonido suben juntos); lo calcula main.js con el reloj
 };
 
 // Valores que se multiplican al aplicar un efecto. 'warmth' se suma; 'showMechanism' se asigna.

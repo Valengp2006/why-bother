@@ -10,42 +10,89 @@ const BG = hexToRgb(CONFIG.BACKGROUND);
 // el suavizado al agrandarla es lo que les da el aspecto de pintura que se corre.
 let trailImg = null;
 
-// Brillo suave: crece rápido con poca traza y se aplana al saturar (nunca pasa de 1).
-const tone = (v) => 1 - Math.exp(-CONFIG.TRAIL_GAIN * v);
+// La pintura se dibuja como pintura de verdad, no como luz:
+//  · se MEZCLA como pigmento (promedio geométrico de los colores, ponderado por cuánto hay de cada uno):
+//    el azul con el dorado da verde, no un amarillo lavado;
+//  · CUBRE al fondo según su cantidad (opacidad), en vez de sumarse como un resplandor;
+//  · tiene GROSOR: su cantidad se trata como una altura y sus crestas atrapan luz (relieve y brillo húmedo).
+let heights = null, heightsTmp = null;
+const LIGHT = (() => { const v = [-0.5, -0.6, 0.62], l = Math.hypot(...v); return v.map((x) => x / l); })();   // luz desde arriba a la izquierda
+const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map((x) => x / l); })();
+const LN = (c) => Math.log(Math.max(8, c));
+
+// Suaviza un arreglo w×h con un promedio de 3 vecinos en cada eje (una pasada).
+function blur3(src, dst, w, h) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      dst[i] = (src[x > 0 ? i - 1 : i] + src[i] + src[x < w - 1 ? i + 1 : i]) / 3;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      src[i] = (dst[y > 0 ? i - w : i] + dst[i] + dst[y < h - 1 ? i + w : i]) / 3;
+    }
+  }
+}
 
 export function drawTrails(p, trails) {
-  if (!trailImg || trailImg.width !== trails.w || trailImg.height !== trails.h) {
-    trailImg = p.createImage(trails.w, trails.h);
+  const { w, h } = trails;
+  if (!trailImg || trailImg.width !== w || trailImg.height !== h) {
+    trailImg = p.createImage(w, h);
+    heights = new Float32Array(w * h);
+    heightsTmp = new Float32Array(w * h);
   }
   trailImg.loadPixels();
   const px = trailImg.pixels;
   const pal = getPalette();
-  const C = [pal.fiel, pal.desvio, pal.deriva];
-  const gold = pal.conservado;
-  const [f, d, r, g] = trails.ch;
-  for (let i = 0; i < f.length; i++) {
-    const tf = tone(f[i]), td = tone(d[i]), tr = tone(r[i]);
-    // Color = fondo + cada canal con su color de la paleta.
-    let R = BG[0] + tf * C[0][0] + td * C[1][0] + tr * C[2][0];
-    let G = BG[1] + tf * C[0][1] + td * C[1][1] + tr * C[2][1];
-    let B = BG[2] + tf * C[0][2] + td * C[1][2] + tr * C[2][2];
-    // Recorte que conserva el tono: si un canal pasa de 255 se escala todo, así el color no se quema a blanco.
-    const mx = Math.max(R, G, B);
-    if (mx > 255) { const k = 255 / mx; R *= k; G *= k; B *= k; }
-    // El dorado (lo que nace de lo conservado) se superpone a la pintura en vez de sumarse: si se sumara
-    // al turquesa se lavaría a un amarillo pálido. Con poco dorado se ve una veta; con mucho, domina.
-    const a = Math.min(0.85, g[i] * CONFIG.GOLD_COVER);
-    if (a > 0) {
-      const lit = Math.min(1, 0.5 + g[i] * 0.35);
-      R = R * (1 - a) + gold[0] * lit * a;
-      G = G * (1 - a) + gold[1] * lit * a;
-      B = B * (1 - a) + gold[2] * lit * a;
+  const cols = [pal.fiel, pal.desvio, pal.deriva, pal.conservado];
+  const lnCol = cols.map((c) => [LN(c[0]), LN(c[1]), LN(c[2])]); // se calcula una vez por cuadro, no por celda
+  const op = CONFIG.PIGMENT_OPACITY;
+  const [c0, c1, c2, c3] = trails.ch;
+
+  // El grosor es la cantidad total de pintura, suavizada para que el relieve sea de pintura continua.
+  for (let i = 0; i < heights.length; i++) heights[i] = c0[i] + c1[i] + c2[i] + c3[i];
+  for (let pass = 0; pass < CONFIG.PAINT_BLUR; pass++) blur3(heights, heightsTmp, w, h);
+
+  const K = CONFIG.PAINT_RELIEF, SPEC = CONFIG.PAINT_SPECULAR, COVER = CONFIG.PAINT_COVER * CONFIG.TRAIL_GAIN;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const q0 = c0[i] * op[0], q1 = c1[i] * op[1], q2 = c2[i] * op[2], q3 = c3[i] * op[3];
+      const S = q0 + q1 + q2 + q3;
+      const o = i * 4;
+      if (S < 1e-4) { px[o] = BG[0]; px[o + 1] = BG[1]; px[o + 2] = BG[2]; px[o + 3] = 255; continue; }
+
+      // Mezcla de pigmentos (promedio geométrico ponderado).
+      const wk0 = q0 / S, wk1 = q1 / S, wk2 = q2 / S, wk3 = q3 / S;
+      const mr = Math.exp(wk0 * lnCol[0][0] + wk1 * lnCol[1][0] + wk2 * lnCol[2][0] + wk3 * lnCol[3][0]);
+      const mg = Math.exp(wk0 * lnCol[0][1] + wk1 * lnCol[1][1] + wk2 * lnCol[2][1] + wk3 * lnCol[3][1]);
+      const mb = Math.exp(wk0 * lnCol[0][2] + wk1 * lnCol[1][2] + wk2 * lnCol[2][2] + wk3 * lnCol[3][2]);
+
+      // Cuánto cubre al fondo.
+      const a = 1 - Math.exp(-COVER * (c0[i] + c1[i] + c2[i] + c3[i]));
+
+      // Relieve: normal a partir del gradiente del grosor; luz difusa y brillo especular.
+      const xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i, ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
+      const gx = (heights[xp] - heights[xm]) * K, gy = (heights[yp] - heights[ym]) * K;
+      const nl = Math.sqrt(gx * gx + gy * gy + 1);
+      const nx = -gx / nl, ny = -gy / nl, nz = 1 / nl;
+      const diff = Math.max(0, nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]);
+      const hd = Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]);
+      const h2 = hd * hd, h4 = h2 * h2, h8 = h4 * h4, h16 = h8 * h8;
+      const spec = h16 * h8 * h4 * SPEC * 255; // hd^28
+      const shade = 0.55 + 0.6 * diff;
+
+      px[o] = BG[0] * (1 - a) + (mr * shade + spec) * a;
+      px[o + 1] = BG[1] * (1 - a) + (mg * shade + spec) * a;
+      px[o + 2] = BG[2] * (1 - a) + (mb * shade + spec) * a;
+      px[o + 3] = 255;
     }
-    const o = i * 4;
-    px[o] = R; px[o + 1] = G; px[o + 2] = B; px[o + 3] = 255;
   }
   trailImg.updatePixels();
-  p.image(trailImg, 0, 0, p.width, p.height);
+  // Se recorta el borde de una celda: ahí la malla no se difunde y dejaría el marco dentado.
+  p.image(trailImg, 0, 0, p.width, p.height, 1, 1, w - 2, h - 2);
 }
 
 // Cada agente es un trazo corto orientado según su rumbo; se desvanece a medida que envejece.
@@ -78,7 +125,7 @@ export function drawFieldDebug(p, field) {
 }
 
 // Panel (tecla D): claridad, agentes por comportamiento, juicios por origen (f fiel, d desvío, v deriva, - sin traza) y campo.
-export function drawDebug(p, { samples, intention, agents, field, log, criteria }) {
+export function drawDebug(p, { samples, intention, agents, field, log, criteria, mode }) {
   drawFieldDebug(p, field);
 
   const counts = { fiel: 0, desvio: 0, deriva: 0 };
@@ -101,6 +148,7 @@ export function drawDebug(p, { samples, intention, agents, field, log, criteria 
     `conservado      f ${log.counts.conserve.fiel} · d ${log.counts.conserve.desvio} · v ${log.counts.conserve.deriva} · - ${log.counts.conserve.ninguno}`,
     `soltado         f ${log.counts.release.fiel} · d ${log.counts.release.desvio} · v ${log.counts.release.deriva} · - ${log.counts.release.ninguno}`,
     `criterios       ${criteria.length} / ${CONFIG.MAX_CRITERIA}`,
+    `modo            ${mode}`,
     `fps             ${Math.round(p.frameRate())}`,
   ];
   lines.forEach((l, i) => p.text(l, 16, 16 + i * 18));
@@ -186,4 +234,31 @@ export function thumbnail(cols, rows) {
     }
   }
   return { cols, rows, data };
+}
+
+// La pantalla de inicio: el título de la obra y la invitación a empezar, sobre la oscuridad.
+// t = segundos desde que se abrió la página; fade = 1 antes del clic, baja a 0 cuando la historia empieza.
+export function drawStartScreen(p, t, fade, mode) {
+  if (fade < 0.01) return;
+  const pal = getPalette();
+  const [r, g, b] = pal.fiel;
+  const titleA = Math.min(1, t / 3) * fade;                    // el título aparece despacio
+  const inviteA = Math.max(0, Math.min(1, (t - 3.5) / 2)) * fade * (0.65 + 0.35 * Math.sin(t * 1.6)); // y la invitación respira
+  p.noStroke();
+  p.textAlign(p.CENTER, p.CENTER);
+  p.textSize(Math.max(28, Math.min(72, p.width / 16)));
+  p.fill(r, g, b, 235 * titleA);
+  p.text(CONFIG.TITLE, p.width / 2, p.height * 0.42);
+  p.stroke(r, g, b, 90 * titleA);
+  p.strokeWeight(1);
+  p.line(p.width / 2 - 60, p.height * 0.5, p.width / 2 + 60, p.height * 0.5);
+  p.noStroke();
+  p.textSize(18);
+  p.fill(r, g, b, 170 * inviteA);
+  p.text(CONFIG.HINT_TEXT, p.width / 2, p.height * 0.57);
+  if (mode === 'dev') {
+    p.textSize(12);
+    p.fill(r, g, b, 90 * fade);
+    p.text('modo dev  ·  ?modo=performance para presentar  ·  N salta la narración  ·  D panel  ·  S guardar  ·  L registro', p.width / 2, p.height - 28);
+  }
 }

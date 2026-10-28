@@ -11,11 +11,18 @@ const FADE_IN = 1000;
 const FADE_OUT = 1500;
 const TEXT_GAP_MS = 3000; // entre frases explicativas se espera poco; entre preguntas, STEP_GAP
 
+// Cuánto dura una frase en pantalla (el prólogo dura distinto que las frases explicativas).
+const durationOf = (step) => (step.ms ? step.ms() : CONFIG.NARRATIVE_MS);
+
 // Cada paso dice cuándo le toca (ready). Un paso solo se muestra después de los anteriores.
 function buildSteps() {
   // Los tiempos se leen de CONFIG en cada cuadro (no al armar la lista), así se pueden cambiar en vivo al probar.
   const gap = (key) => (s, n, now) => now - n.lastEnd >= (key === 'text' ? TEXT_GAP_MS : CONFIG.STEP_GAP * 1000);
   const steps = [
+    // El prólogo cuenta la historia en el centro, mientras la pintura florece; luego vienen las frases que explican.
+    { type: 'text', id: 'prologo1', style: 'center', ms: () => CONFIG.PROLOGUE_MS, ready: gap('text') },
+    { type: 'text', id: 'prologo2', style: 'center', ms: () => CONFIG.PROLOGUE_MS, ready: gap('text') },
+    { type: 'text', id: 'prologo3', style: 'center', ms: () => CONFIG.PROLOGUE_MS, ready: gap('text') },
     { type: 'text', id: 'intencion', ready: (s) => s.intentionActive },
     { type: 'text', id: 'comportamientos', ready: (s, n, now) => gap('text')(s, n, now) && s.counts.fiel > 0 && s.counts.desvio + s.counts.deriva > 0 },
     { type: 'text', id: 'juicio', ready: gap('text') },
@@ -29,11 +36,17 @@ export function createNarrative() {
   return { steps: buildSteps(), index: 0, current: null, start: 0, lastEnd: 0, rects: [], done: false };
 }
 
+// Solo en dev: salta el paso actual (sin aplicar efectos) y deja que el siguiente aparezca enseguida.
+export function skipNarrative(n, nowMs) {
+  n.current = null;
+  n.lastEnd = nowMs - 1e9;
+}
+
 // Decide qué paso toca. state = { intentionActive, counts: { fiel, desvio, deriva } }.
 export function updateNarrative(n, state, nowMs) {
   if (!CONFIG.NARRATIVE_ENABLED) return;
   const cur = n.current;
-  if (cur && cur.type === 'text' && nowMs - n.start >= CONFIG.NARRATIVE_MS) {
+  if (cur && cur.type === 'text' && nowMs - n.start >= durationOf(cur)) {
     n.current = null;
     n.lastEnd = nowMs;
   }
@@ -65,16 +78,19 @@ export function drawNarrative(p, n, nowMs, mouse) {
   p.textAlign(p.CENTER, p.CENTER);
 
   if (cur.type === 'text') {
-    const alpha = Math.max(0, Math.min(1, t / FADE_IN, (CONFIG.NARRATIVE_MS - t) / FADE_OUT));
+    const dur = durationOf(cur);
+    const alpha = Math.max(0, Math.min(1, t / FADE_IN, (dur - t) / FADE_OUT));
     const lines = CONFIG.NARRATIVE_TEXT[cur.id];
-    const lineH = 28;
-    p.textSize(18);
+    const center = cur.style === 'center'; // el prólogo va grande y al centro; las frases explicativas, abajo
+    const lineH = center ? 38 : 28;
+    p.textSize(center ? 28 : 18);
     lines.forEach((l, i) => {
       // 'deriva' es un azul casi del color del fondo; para leerse como texto se aclara hacia el blanco.
       let [r, g, b] = l.color ? pal[l.color] : pal.fiel;
       if (l.color === 'deriva') { r += (pal.fiel[0] - r) * 0.5; g += (pal.fiel[1] - g) * 0.5; b += (pal.fiel[2] - b) * 0.5; }
       p.fill(r, g, b, 210 * alpha);
-      p.text(l.text, p.width / 2, p.height - 70 - (lines.length - 1 - i) * lineH);
+      const y = center ? p.height * 0.46 + i * lineH : p.height - 70 - (lines.length - 1 - i) * lineH;
+      p.text(l.text, p.width / 2, y);
     });
     return;
   }

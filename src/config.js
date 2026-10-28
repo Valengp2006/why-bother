@@ -15,6 +15,23 @@ export const CONFIG = {
   // Si el panel de depuración (tecla D) está visible al abrir la página.
   DEBUG_AT_START: true,
 
+  // --- Modos (ver mode.js): se elige con ?modo=dev o ?modo=performance en la dirección ---
+  // Lo que cambia cada modo. Estos valores reemplazan a los de arriba al abrir la página.
+  MODES: {
+    // Para presentar: pantalla limpia, pantalla completa al hacer clic, malla más ligera para mantener la fluidez.
+    performance: { DEBUG_AT_START: false, FULLSCREEN: true, GRID_SCALE: 0.22 },
+    // Para construir y probar: panel de depuración, sin pantalla completa.
+    dev: { DEBUG_AT_START: true, FULLSCREEN: false },
+  },
+
+  // --- Inicio y prólogo (la historia empieza en la pantalla de inicio y fluye con la imagen y el sonido) ---
+  // Título de la obra en la pantalla de inicio. Debajo va HINT_TEXT ('Haz clic para comenzar').
+  TITLE: 'Lo que quise decir',
+
+  // Segundos que tarda la pintura en florecer desde la oscuridad tras el primer clic (y el sonido en subir).
+  // Más alto: el inicio es más lento y contemplativo; más bajo: arranca de una vez.
+  BLOOM_SECONDS: 18,
+
   // --- Intención (el mouse, sin presionar) ---
   // Cuánta historia del mouse se mira para medir la claridad, en milisegundos.
   // Más alto: la claridad reacciona más lento y "perdona" cambios bruscos recientes.
@@ -198,13 +215,48 @@ export const CONFIG = {
   // Intensidad mínima de traza conservada para que un sensor la note.
   SENSE_MIN: 0.05,
 
+  // --- Sonido (agua y viento con Tone.js; sin escala musical) ---
+  // Volumen general en decibelios. Más alto (menos negativo): suena más fuerte. 0 es el máximo sin recorte.
+  AUDIO_VOLUME_DB: -14,
+
+  // Frecuencia (Hz) del viento en el mundo frío y en el cálido. El viento se aclara al inclinarse la paleta hacia lo cálido.
+  WIND_COOL_HZ: 320,
+  WIND_WARM_HZ: 1100,
+
+  // Gotas de agua por segundo cuando la pintura se mueve con fuerza. Más alto: lluvia más densa; 0 las apaga.
+  DROP_RATE: 3.5,
+
+  // Tono (Hz) de las gotas en el mundo frío y en el cálido (más agudas = más cálido y brillante).
+  DROP_COOL_HZ: 520,
+  DROP_WARM_HZ: 1250,
+
+  // Frecuencia (Hz) del zumbido grave que sostiene lo conservado. Una voz por cada criterio activo.
+  DRONE_HZ: 98,
+
+  // Máximo de voces del zumbido a la vez. Más alto: lo conservado puede sonar más lleno.
+  MAX_VOICES: 4,
+
   // --- Dibujo ---
   // Brillo de las trazas al dibujarlas. Más alto: colores más saturados y luminosos; más bajo: más oscuro y tenue.
   TRAIL_GAIN: 1.8,
 
-  // Cuánto cubre la pintura dorada (la que nace de lo conservado) a la demás. Más alto: el dorado domina enseguida;
-  // más bajo: solo se ven vetas finas. Es la señal visual de lo que la persona eligió conservar.
-  GOLD_COVER: 0.4,
+  // --- Pintura (cómo se ve la pintura: se mezcla como pigmento, cubre y tiene grosor) ---
+  // Cuánto cubre la pintura al fondo según su cantidad. Más alto: más opaca; más bajo: más transparente, se ve el fondo.
+  PAINT_COVER: 1.2,
+
+  // Opacidad de cada pigmento al mezclarse: [fiel, desvío, deriva, dorado]. Más alto: ese pigmento domina la mezcla.
+  // La deriva es translúcida (se pierde) y el dorado cubre (es lo que la persona conservó).
+  PIGMENT_OPACITY: [1, 1, 0.6, 2],
+
+  // Relieve: el grosor de la pintura se trata como una altura y las crestas atrapan luz. Más alto: más marcado,
+  // como pintura espesa (impasto); 0 la deja plana.
+  PAINT_RELIEF: 5,
+
+  // Brillo especular (el reflejo húmedo de la pintura). Más alto: más brillante y mojada; 0 la deja mate.
+  PAINT_SPECULAR: 0.35,
+
+  // Cuántas pasadas de suavizado tiene el relieve. Más alto: crestas más lisas y anchas; 0 deja granos sueltos.
+  PAINT_BLUR: 2,
 
   // Si se dibuja la intención: el trazo del mouse y, por delante, su alcance (hasta dónde llega el campo).
   // Sirve para ver qué parte pone la persona y qué parte pone el sistema. false lo oculta.
@@ -228,7 +280,10 @@ export const CONFIG = {
   // Describen el mecanismo; no dicen qué es bueno o malo. Si se apaga, la obra queda sin texto salvo la instrucción inicial.
   NARRATIVE_ENABLED: true,
 
-  // Cuánto dura cada frase en pantalla (ms), contando su aparición y su desvanecimiento.
+  // Cuánto dura cada frase del prólogo en pantalla (ms).
+  PROLOGUE_MS: 6500,
+
+  // Cuánto dura cada frase explicativa en pantalla (ms), contando su aparición y su desvanecimiento.
   NARRATIVE_MS: 8000,
 
   // Cuánto se espera (ms) después de la frase de los comportamientos antes de la del juicio.
@@ -236,6 +291,11 @@ export const CONFIG = {
 
   // Los textos. 'color' toma el de la paleta (fiel, desvio, deriva, conservado); sin 'color', el texto es neutro.
   NARRATIVE_TEXT: {
+    // Prólogo: la historia empieza sola, mientras la pintura florece desde la oscuridad. Son tu punto de vista:
+    // antes de la IA el esfuerzo técnico era la barrera; ahora lo que queda como tuyo es el sentido. Edítalo con tus palabras.
+    prologo1: [{ text: 'Antes, imaginar algo así podía tomar años.' }],
+    prologo2: [{ text: 'Ahora, una intención basta para ponerlo en movimiento.' }],
+    prologo3: [{ text: 'Pero lo que quiere decir, lo decides tú.' }],
     intencion: [
       { text: 'Tu mano marca una intención. Mientras más clara, más lejos llega.' },
     ],

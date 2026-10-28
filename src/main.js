@@ -1,6 +1,7 @@
 // main.js — arranque y ciclo de p5.
 import p5 from 'p5';
 import { CONFIG } from './config.js';
+import { MODE } from './mode.js'; // ajusta CONFIG según el modo (dev o performance)
 import { recordSample, computeClarity } from './intention.js';
 import { createField, updateField } from './field.js';
 import { createAgent, createInheritedAgent, stepAgent } from './agent.js';
@@ -10,14 +11,14 @@ import { createTrails, deposit, updateTrails } from './trails.js';
 import { judge } from './judgment.js';
 import { world, updateWorld, applyEffect } from './world.js';
 import { wellPosition, ambientDir } from './ambient.js';
-import { startAudio } from './audio.js';
+import { startAudio, updateAudio, chime } from './audio.js';
 import { createLog, downloadLog, recordChoice, recordFinal } from './log.js';
-import { createNarrative, updateNarrative, drawNarrative, narrativeClick } from './narrative.js';
-import { drawAgents, drawTrails, drawIntention, drawHint, drawDebug, drawFieldDebug, thumbnail } from './render.js';
+import { createNarrative, updateNarrative, drawNarrative, narrativeClick, skipNarrative } from './narrative.js';
+import { drawAgents, drawTrails, drawIntention, drawHint, drawStartScreen, drawDebug, drawFieldDebug, thumbnail } from './render.js';
 
-// Solo en desarrollo (npm run dev): permite probar valores desde la consola del navegador,
-// por ejemplo  __CONFIG.TRAIL_GAIN = 2  , sin recargar. No existe en la versión publicada.
-if (import.meta.env.DEV) window.__CONFIG = CONFIG;
+// Solo en modo dev: permite probar valores desde la consola del navegador, por ejemplo  __CONFIG.TRAIL_GAIN = 2  ,
+// sin recargar. En modo performance no existe.
+if (MODE === 'dev') { window.__CONFIG = CONFIG; window.__world = world; }
 
 new p5((p) => {
   const samples = []; // trayectoria reciente del mouse
@@ -30,8 +31,8 @@ new p5((p) => {
   const tmp = { x: 0, y: 0 }, tmpDir = { x: 0, y: 0 };
   let spawnCarry = 0; // fracción de agente que "sobra" de un cuadro al siguiente
   const narrative = createNarrative();
-  const log = createLog();
-  let hintAlpha = 0;      // opacidad de la instrucción inicial
+  const session = createLog(); // el registro de la sesión (decisiones y juicios)
+  let startFade = 1;      // 1 = se ve la pantalla de inicio; baja a 0 en 3 s cuando la historia empieza
   let hint2Alpha = 0;     // segunda invitación: 'Mueve el mouse', si pasa un rato sin que la persona se mueva
   let startedAt = 0;      // instante (ms) del primer clic
   let sawIntention = false; // true cuando la persona ya se movió con intención al menos una vez
@@ -67,7 +68,7 @@ new p5((p) => {
   function spawnAmbient(dt, tSec) {
     if (CONFIG.AMBIENT_SPAWN_RATE <= 0) return;
     for (let i = 0; i < CONFIG.AMBIENT_WELLS; i++) {
-      wellCarry[i] += CONFIG.AMBIENT_SPAWN_RATE * world.ambientSpawnMul * dt;
+      wellCarry[i] += CONFIG.AMBIENT_SPAWN_RATE * world.ambientSpawnMul * Math.pow(world.bloom, 1.6) * dt; // al principio casi nada: la pintura florece
       if (wellCarry[i] < 1) continue;
       wellPosition(p, i, tSec, p.width, p.height, tmp);
       ambientDir(p, tmp.x, tmp.y, tSec, tmpDir);
@@ -101,10 +102,9 @@ new p5((p) => {
     const now = p.millis();
     p.background(CONFIG.BACKGROUND);
 
-    // Antes del primer clic: oscuridad y silencio, solo la invitación a empezar.
+    // Antes del primer clic: oscuridad y silencio, solo el título y la invitación a empezar.
     if (!started) {
-      hintAlpha += (1 - hintAlpha) * Math.min(1, dt * 1.2);
-      drawHint(p, hintAlpha);
+      drawStartScreen(p, now / 1000, 1, MODE);
       return;
     }
 
@@ -133,9 +133,11 @@ new p5((p) => {
     }
 
     updateTrails(trails, dt);
+    updateAudio({ flow: Math.min(1, agents.length / 600), warmth: world.warmth, criteria: criteria.length, bloom: world.bloom }, dt);
 
-    // La invitación inicial se desvanece cuando la persona hace clic.
-    hintAlpha += (0 - hintAlpha) * Math.min(1, dt * 2.5);
+    // El título se desvanece despacio cuando la historia empieza.
+    startFade = Math.max(0, 1 - (now - startedAt) / 3000);
+    world.bloom = Math.min(1, (now - startedAt) / (CONFIG.BLOOM_SECONDS * 1000)); // la floración sigue el reloj, no los cuadros
 
     // Cuántos agentes hay de cada comportamiento: la capa narrativa lo usa para saber qué ya está en pantalla.
     const counts = { fiel: 0, desvio: 0, deriva: 0 };
@@ -146,7 +148,7 @@ new p5((p) => {
     if (wantSave) { saveArt(now); wantSave = false; } // justo después de pintar: solo la pintura, sin textos ni paneles
 
     // Si pasa un rato sin que la persona se mueva, una segunda invitación la guía.
-    const wantHint2 = !sawIntention && now - startedAt > 5000;
+    const wantHint2 = !sawIntention && narrative.index >= 4 && !narrative.current && now - narrative.lastEnd > 3000; // tras el prólogo, si no se ha movido
     hint2Alpha += ((wantHint2 ? 1 : 0) - hint2Alpha) * Math.min(1, dt * 1.5);
 
     if (CONFIG.SHOW_INTENTION) drawIntention(p, samples, intention, criteria);
@@ -154,10 +156,10 @@ new p5((p) => {
       if (world.showMechanism) drawFieldDebug(p, field); // "ver cómo funciona": el campo y los agentes
       drawAgents(p, agents);
     }
-    drawHint(p, hintAlpha);
+    drawStartScreen(p, now / 1000, startFade, MODE);
     drawHint(p, hint2Alpha, CONFIG.HINT2_TEXT);
     drawNarrative(p, narrative, now, { x: p.mouseX, y: p.mouseY });
-    if (showDebug) drawDebug(p, { samples, intention, agents, field, log, criteria });
+    if (showDebug) drawDebug(p, { samples, intention, agents, field, log: session, criteria, mode: MODE });
   };
 
   // Descarga la obra como imagen PNG y deja en el registro cómo quedó (una miniatura para comparar obras entre personas).
@@ -166,11 +168,11 @@ new p5((p) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lo-que-quise-decir-${log.startedAt.replace(/[:.]/g, '-')}.png`;
+      a.download = `lo-que-quise-decir-${session.startedAt.replace(/[:.]/g, '-')}.png`;
       a.click();
       URL.revokeObjectURL(url);
     });
-    recordFinal(log, nowMs, world, thumbnail(32, 18));
+    recordFinal(session, nowMs, world, thumbnail(32, 18));
   }
 
   // Clic: primero ¿eligió una opción de la narración? Si no, es un juicio: conservar (clic) o soltar (clic derecho, Shift+clic).
@@ -179,6 +181,8 @@ new p5((p) => {
     if (!started) {
       started = true;
       startedAt = p.millis();
+      narrative.lastEnd = startedAt;                       // el prólogo cuenta desde aquí
+      if (CONFIG.FULLSCREEN && !p.fullscreen()) p.fullscreen(true); // en modo performance, pantalla completa
       startAudio();
       return;
     }
@@ -190,16 +194,18 @@ new p5((p) => {
       } else if (choice.option.effect) {
         applyEffect(choice.option.effect);            // la decisión cambia el mundo
       }
-      recordChoice(log, now, choice);
+      chime(world.warmthTarget);
+      recordChoice(session, now, choice);
       return;
     }
-    judge(trails, log, criteria, event, p.mouseX, p.mouseY, now);
+    judge(trails, session, criteria, event, p.mouseX, p.mouseY, now);
   };
 
   p.keyPressed = () => {
     if (p.key === 'd' || p.key === 'D') showDebug = !showDebug;
-    if (p.key === 'l' || p.key === 'L') downloadLog(log, p.millis()); // descarga el registro de la sesión en JSON
+    if (p.key === 'l' || p.key === 'L') downloadLog(session, p.millis()); // descarga el registro de la sesión en JSON
     if (p.key === 's' || p.key === 'S') wantSave = true;               // guarda la obra como imagen
+    if ((p.key === 'n' || p.key === 'N') && MODE === 'dev') skipNarrative(narrative, p.millis()); // solo dev: salta la narración
   };
 
   // Si cambia el tamaño de la ventana, el canvas y el campo la siguen.
