@@ -1,7 +1,7 @@
 // narrative.js — la narración: frases que explican qué representa cada cosa, y luego preguntas
 // cuyas opciones cambian el mundo. Todo se muestra en orden, cuando toca, y los textos viven en config.js.
 //
-// Pasos:  frase (intención) → frase (comportamientos) → frase (juicio) → preguntas → pregunta final.
+// Pasos:  prólogo → intención → comportamientos → invitación a verter → qué es el dorado → preguntas → pregunta final.
 // Las frases se desvanecen solas. Las preguntas esperan a que la persona haga clic en una de las dos opciones,
 // que flotan dentro de la pintura.
 import { CONFIG } from './config.js';
@@ -26,7 +26,10 @@ function buildSteps() {
     { type: 'text', id: 'prologo3', style: 'center', ms: () => CONFIG.PROLOGUE_MS, ready: gap('text') },
     { type: 'text', id: 'intencion', ready: (s) => s.intentionActive },
     { type: 'text', id: 'comportamientos', ready: (s, n, now) => gap('text')(s, n, now) && s.counts.fiel > 0 && s.counts.desvio + s.counts.deriva > 0 },
-    { type: 'text', id: 'juicio', ready: gap('text') },
+    // Si la persona ya vertió por su cuenta, la invitación sobra y se salta.
+    { type: 'text', id: 'juicio', skip: (s) => s.pourCount > 0, ready: gap('text') },
+    // La explicación del dorado llega cuando la persona vierte por primera vez (o, si no lo hace, pasado un tiempo).
+    { type: 'text', id: 'oro', ready: (s, n, now) => gap('text')(s, n, now) && (s.pourCount > 0 || now - n.lastEnd >= CONFIG.GOLD_EXPLAIN_WAIT * 1000) },
   ];
   for (const q of CONFIG.QUESTIONS) steps.push({ type: 'question', id: q.id, question: q, ready: gap('step') });
   steps.push({ type: 'final', id: 'final', question: CONFIG.FINAL_QUESTION, ready: gap('step') });
@@ -43,7 +46,7 @@ export function skipNarrative(n, nowMs) {
   n.lastEnd = nowMs - 1e9;
 }
 
-// Decide qué paso toca. state = { intentionActive, counts: { fiel, desvio, deriva } }.
+// Decide qué paso toca. state = { intentionActive, counts: { fiel, desvio, deriva }, pourCount (vertidos empezados) }.
 export function updateNarrative(n, state, nowMs) {
   if (!CONFIG.NARRATIVE_ENABLED) return;
   const cur = n.current;
@@ -51,6 +54,7 @@ export function updateNarrative(n, state, nowMs) {
     n.current = null;
     n.lastEnd = nowMs;
   }
+  while (!n.current && n.index < n.steps.length && n.steps[n.index].skip && n.steps[n.index].skip(state)) n.index++;
   if (!n.current && n.index < n.steps.length && n.steps[n.index].ready(state, n, nowMs)) {
     n.current = n.steps[n.index];
     n.start = nowMs;

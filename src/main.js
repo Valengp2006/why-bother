@@ -201,7 +201,7 @@ new p5((p) => {
     // Cuántos agentes hay de cada comportamiento: la capa narrativa lo usa para saber qué ya está en pantalla.
     const counts = { fiel: 0, desvio: 0, deriva: 0 };
     for (const a of agents) counts[a.behavior]++;
-    updateNarrative(narrative, { intentionActive: intention.active, counts }, now);
+    updateNarrative(narrative, { intentionActive: intention.active, counts, pourCount: session.pours.length + (pouring ? 1 : 0) }, now);
 
     drawTrails(p, trails, now);
     if (wantSave) { saveArt(now); wantSave = false; } // justo después de pintar: solo la pintura, sin textos ni paneles

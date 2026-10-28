@@ -314,6 +314,10 @@ export const CONFIG = {
   // Cuánto dura cada frase del prólogo en pantalla (ms).
   PROLOGUE_MS: 6500,
 
+  // Si la persona no vierte, la explicación del dorado aparece igual pasados estos segundos desde la invitación,
+  // para que la historia no se quede esperando. Más alto: se espera más a que vierta por sí sola.
+  GOLD_EXPLAIN_WAIT: 30,
+
   // Cuánto dura cada frase explicativa en pantalla (ms), contando su aparición y su desvanecimiento.
   NARRATIVE_MS: 8000,
 
@@ -333,10 +337,16 @@ export const CONFIG = {
       { text: 'Turquesa: se desvía, pero en grupo.', color: 'desvio' },
       { text: 'Azul: se pierde.', color: 'deriva' },
     ],
+    // La invitación a verter. Aparece después de explicar los tres colores del sistema.
     juicio: [
-      { text: 'Tú decides qué se queda.' },
-      { text: 'Mantén el clic: viertes tu propia pintura, en dorado.', color: 'conservado' },
-      { text: 'Lo que viertes sigue su camino sin ti.' },
+      { text: 'Mantén el clic: viertes tu propia pintura.', color: 'conservado' },
+    ],
+    // Qué es el dorado, para qué sirve y qué representa. Aparece cuando la persona vierte por primera vez y ya ve su dorado.
+    // Describe cómo funciona el color, sin juzgar: el dorado es lo único que no pone el sistema.
+    oro: [
+      { text: 'Lo dorado es lo tuyo.', color: 'conservado' },
+      { text: 'Todo lo demás lo pone el sistema solo.' },
+      { text: 'Lo tuyo dura más, atrae lo que pasa cerca y sigue su camino sin ti.', color: 'conservado' },
     ],
   },
 
